@@ -1,0 +1,87 @@
+{
+  "weights": {
+    "detection": 20,
+    "classification": 25,
+    "assessment": 15,
+    "engagement": 30,
+    "outcome": 10
+  },
+  "nodes": [
+    {
+      "id": "detection.reaction",
+      "stage": "detection",
+      "question": "How soon after the threat became observable was it detected?",
+      "branches": [
+        { "condition": "reaction<=0.25", "points": 1, "label": "Detected in the first quarter of the warning window" },
+        { "condition": "reaction<=0.6", "points": 0.6, "label": "Detected within 60% of the warning window" },
+        { "condition": "reaction>0.6", "points": 0.2, "label": "Detected late in the warning window" },
+        { "condition": "never_detected", "points": 0, "label": "Never detected" }
+      ]
+    },
+    {
+      "id": "classification.accuracy",
+      "stage": "classification",
+      "question": "Was the threat classified correctly?",
+      "branches": [
+        { "condition": "exact", "points": 1, "label": "Exact class" },
+        { "condition": "same_family", "points": 0.5, "label": "Right family, wrong class" },
+        { "condition": "wrong_family", "points": 0, "label": "Wrong family" },
+        { "condition": "nonthreat_called_threat", "points": 0, "label": "Non-threat called a threat" },
+        { "condition": "threat_called_nonthreat", "points": 0, "label": "Threat called a non-threat" },
+        { "condition": "not_classified", "points": 0, "label": "Never classified" }
+      ]
+    },
+    {
+      "id": "assessment.priority",
+      "stage": "assessment",
+      "question": "Was the threat ranked in the correct priority position?",
+      "branches": [
+        { "condition": "rank_exact", "points": 1, "label": "Exact priority position" },
+        { "condition": "rank_within_1", "points": 0.6, "label": "Within one position" },
+        { "condition": "rank_within_2", "points": 0.3, "label": "Within two positions" },
+        { "condition": "rank_far_or_missing", "points": 0, "label": "Far from correct or not ranked" }
+      ]
+    },
+    {
+      "id": "engagement.decision",
+      "stage": "engagement",
+      "question": "Was the engage or hold-fire decision correct and within the rules of engagement?",
+      "branches": [
+        { "condition": "hostile_roe_met_correct_effector", "points": 1, "label": "Hostile, ROE met, correct effector" },
+        { "condition": "hostile_roe_met_wrong_effector", "points": 0.5, "label": "Hostile, ROE met, wrong effector" },
+        { "condition": "engaged_before_confirmation", "points": -0.5, "label": "ROE violation: engaged before confirmation" },
+        { "condition": "held_fire_on_hostile", "points": -1, "label": "Critical miss: held fire on a hostile" },
+        { "condition": "engaged_bird", "points": -0.75, "label": "Engaged a bird" },
+        { "condition": "engaged_civilian", "points": -1, "label": "Engaged a civilian aircraft" },
+        { "condition": "engaged_friendly", "points": -1, "label": "Engaged a friendly aircraft" },
+        { "condition": "held_fire_on_nonthreat", "points": 1, "label": "Bonus: correctly held fire on a non-threat" }
+      ]
+    },
+    {
+      "id": "outcome.result",
+      "stage": "outcome",
+      "question": "What was the physical outcome for the threat?",
+      "branches": [
+        { "condition": "neutralised", "points": 1, "label": "Threat neutralised" },
+        { "condition": "ignored_nonthreat", "points": 1, "label": "Non-threat left alone" },
+        { "condition": "wasted", "points": 0.25, "label": "Effector wasted" },
+        { "condition": "ignored_hostile", "points": 0, "label": "Hostile ignored" },
+        { "condition": "leak", "points": -0.5, "label": "Hostile leaked through" },
+        { "condition": "fratricide", "points": -1, "label": "Fratricide" }
+      ]
+    }
+  ],
+  "criticalFails": [
+    {
+      "id": "fratricide",
+      "condition": "engaged_friendly",
+      "label": "Engaged a friendly aircraft",
+      "scoreCap": 40
+    },
+    {
+      "id": "critical_miss",
+      "condition": "held_fire_on_hostile",
+      "label": "Held fire on a hostile"
+    }
+  ]
+}
