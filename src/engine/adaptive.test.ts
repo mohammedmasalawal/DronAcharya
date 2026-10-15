@@ -3,7 +3,9 @@ import type { Competencies, Difficulty, ScoreReport } from '../schema';
 import { mulberry32 } from '../shared/prng';
 import {
   COMPETENCY_KEYS,
+  INITIAL_LEVEL,
   INITIAL_RATING,
+  INITIAL_SMOOTHED,
   KNOB_KEYS,
   createProfile,
   examConfig,
@@ -11,7 +13,7 @@ import {
   expectedSuccess,
   levelFor,
   nextDifficulty,
-  targetLevel,
+  ownedKnobs,
   updateSkill,
   type Ratings,
   type SkillProfile,
@@ -109,19 +111,10 @@ describe('updateSkill', () => {
     expect([kFactor(2), kFactor(3), kFactor(7), kFactor(8)]).toEqual([100, 60, 60, 40]);
   });
 
-  it('uses the widened reference scale 700 + 600 x level', () => {
+  it('keeps the widened Elo reference scale 700 + 600 x level', () => {
     expect(expectedSuccess(1000, 0.5)).toBeCloseTo(0.5, 9);
     expect(expectedSuccess(1000, 0)).toBeCloseTo(1 / (1 + 10 ** (-300 / 400)), 9);
     expect(expectedSuccess(1000, 1)).toBeCloseTo(1 / (1 + 10 ** (300 / 400)), 9);
-    expect(targetLevel(1000)).toBeCloseTo((1000 - 147 - 700) / 600, 9);
-    expect(targetLevel(0)).toBe(0.05);
-    expect(targetLevel(5000)).toBe(0.95);
-  });
-
-  it('rates harder scenarios more generously', () => {
-    const easy = updateSkill(createProfile('t'), reportWith(70), extrasWith(), uniform(0.2));
-    const hard = updateSkill(createProfile('t'), reportWith(70), extrasWith(), uniform(0.9));
-    expect(hard.ratings.detect).toBeGreaterThan(easy.ratings.detect);
   });
 
   it('uses the mapped knobs for each competency', () => {
@@ -189,32 +182,154 @@ describe('updateSkill', () => {
   });
 });
 
-describe('nextDifficulty', () => {
-  it('targets about 70% expected success', () => {
-    for (const rating of [900, 1000, 1200, 1400]) {
-      const level = targetLevel(rating);
-      expect(expectedSuccess(rating, level)).toBeCloseTo(0.7, 2);
+describe('controller', () => {
+  const scoreOf = (profile: SkillProfile, score: number, extras = extrasWith()) =>
+    updateSkill(profile, reportWith(score), extras, uniform(0.5));
+
+  it('starts every level at 0.3 and every smoothed score at 0.75', () => {
+    const profile = createProfile('t');
+    for (const key of COMPETENCY_KEYS) {
+      expect(profile.levels[key]).toBe(INITIAL_LEVEL);
+      expect(profile.smoothed[key]).toBe(INITIAL_SMOOTHED);
     }
+    expect(INITIAL_LEVEL).toBe(0.3);
+    expect(INITIAL_SMOOTHED).toBe(0.75);
   });
 
-  it('gives the weakest competency knobs the +0.1 emphasis', () => {
-    const profile = profileWith({
-      detect: 1400,
-      classify: 1000,
-      prioritise: 1400,
-      engage: 1400,
-      roe: 1400,
-      trust: 1400,
-    });
-    const d = nextDifficulty(profile, withoutExploration());
-    const high = targetLevel(1400);
-    const low = targetLevel(1000);
+  it('smooths the score and steps the level proportionally to the error', () => {
+    const next = scoreOf(createProfile('t'), 85);
+    expect(next.smoothed.detect).toBeCloseTo(0.5 * 0.75 + 0.5 * 0.85, 9);
+    expect(next.levels.detect).toBeCloseTo(0.3 + 0.6 * (0.8 - 0.75), 9);
 
-    expect(d.ambiguity).toBeCloseTo(Math.min(1, (low + high + high) / 3 + 0.1), 3);
-    expect(d.degradation).toBeCloseTo(Math.min(1, (high + low + high) / 3 + 0.1), 3);
-    expect(d.speed).toBeCloseTo(high, 3);
-    expect(d.threatCount).toBeCloseTo(high, 3);
-    expect(d.evasiveness).toBeCloseTo(high, 3);
+    const poor = scoreOf(createProfile('t'), 65);
+    expect(poor.smoothed.detect).toBeCloseTo(0.7, 9);
+    expect(poor.levels.detect).toBeCloseTo(0.3 + 0.6 * (0.7 - 0.75), 9);
+  });
+
+  it('clamps the step to 0.12 and the level to [0.05, 0.95]', () => {
+    const first = scoreOf(createProfile('t'), 100);
+    expect(first.smoothed.detect).toBeCloseTo(0.875, 9);
+    expect(first.levels.detect).toBeCloseTo(0.3 + 0.6 * 0.125, 9);
+
+    const steps: number[] = [];
+    let rising = createProfile('t');
+    for (let i = 0; i < 6; i++) {
+      const next = scoreOf(rising, 100);
+      steps.push(next.levels.detect - rising.levels.detect);
+      rising = next;
+    }
+    expect(Math.max(...steps)).toBeCloseTo(0.12, 9);
+    expect(steps[2]).toBeCloseTo(0.12, 9);
+    for (const step of steps) expect(step).toBeLessThanOrEqual(0.12 + 1e-9);
+
+    const down = scoreOf(createProfile('t'), 0);
+    expect(down.levels.detect).toBeCloseTo(0.3 - 0.12, 9);
+
+    let falling = createProfile('t');
+    for (let i = 0; i < 20; i++) {
+      rising = scoreOf(rising, 100);
+      falling = scoreOf(falling, 0);
+    }
+    expect(rising.levels.detect).toBeCloseTo(0.95, 9);
+    expect(falling.levels.detect).toBeCloseTo(0.05, 9);
+  });
+
+  it('holds the level when the smoothed score sits on the setpoint', () => {
+    const next = scoreOf(createProfile('t'), 75);
+    expect(next.levels.detect).toBeCloseTo(0.3, 9);
+  });
+
+  it('leaves levels and smoothed scores of skipped competencies unchanged', () => {
+    const next = scoreOf(
+      createProfile('t'),
+      100,
+      extrasWith({ droppedStages: ['classification', 'engagement'], trustSamples: 0 }),
+    );
+    for (const key of ['classify', 'engage', 'roe', 'trust'] as const) {
+      expect(next.levels[key]).toBe(INITIAL_LEVEL);
+      expect(next.smoothed[key]).toBe(INITIAL_SMOOTHED);
+    }
+    expect(next.levels.detect).toBeGreaterThan(INITIAL_LEVEL);
+    expect(next.levels.prioritise).toBeGreaterThan(INITIAL_LEVEL);
+  });
+
+  it('records levels in the history and does not mutate the input', () => {
+    const profile = createProfile('t');
+    const snapshot = structuredClone(profile);
+    const next = scoreOf(profile, 90);
+    expect(profile).toEqual(snapshot);
+    expect(next.levels).not.toBe(profile.levels);
+    expect(next.smoothed).not.toBe(profile.smoothed);
+    expect(next.history[0]!.levels).toEqual(next.levels);
+  });
+
+  it('keeps the Elo update independent of the controller', () => {
+    const next = scoreOf(createProfile('t'), 90);
+    const expected = expectedSuccess(1000, levelFor('detect', uniform(0.5)));
+    expect(next.ratings.detect).toBeCloseTo(1000 + 100 * (0.9 - expected), 9);
+  });
+
+  it('accepts a legacy profile that has no levels', () => {
+    const legacy = {
+      ...createProfile('t'),
+      levels: undefined,
+      smoothed: undefined,
+    } as unknown as SkillProfile;
+    const next = scoreOf(legacy, 100);
+    expect(next.levels.detect).toBeCloseTo(0.375, 9);
+    expect(Object.values(nextDifficulty(legacy, 1)).every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe('nextDifficulty', () => {
+  const levelsProfile = (
+    levels: Partial<Ratings>,
+    ratings: Partial<Ratings> = {},
+  ): SkillProfile => ({
+    ...createProfile('t'),
+    levels: { ...createProfile('t').levels, ...levels },
+    ratings: { ...createProfile('t').ratings, ...ratings },
+  });
+
+  it('gives each knob the mean level of the competencies that own it', () => {
+    const profile = levelsProfile(
+      { detect: 0.8, classify: 0.2, prioritise: 0.6, engage: 0.4, roe: 0.5, trust: 0.9 },
+      { detect: 900 },
+    );
+    const d = nextDifficulty(profile, withoutExploration());
+    expect(d.speed).toBeCloseTo(0.8 + 0.1, 3);
+    expect(d.altitude).toBeCloseTo(0.8 + 0.1, 3);
+    expect(d.threatCount).toBeCloseTo((0.6 + 0.4) / 2, 3);
+    expect(d.evasiveness).toBeCloseTo(0.4, 3);
+    expect(d.ambiguity).toBeCloseTo((0.2 + 0.5 + 0.9) / 3, 3);
+    expect(d.degradation).toBeCloseTo(Math.min(1, (0.8 + 0.2 + 0.9) / 3 + 0.1), 3);
+    expect(d.timePressure).toBeCloseTo(Math.min(1, (0.8 + 0.6 + 0.4) / 3 + 0.1), 3);
+  });
+
+  it('adds the +0.1 emphasis to the knobs of the weakest competency by Elo rating', () => {
+    const base = levelsProfile({
+      detect: 0.5,
+      classify: 0.5,
+      prioritise: 0.5,
+      engage: 0.5,
+      roe: 0.5,
+      trust: 0.5,
+    });
+    const seed = withoutExploration();
+    const plain = nextDifficulty(base, seed);
+    for (const knob of KNOB_KEYS) {
+      const boost = ownedKnobs('detect').includes(knob) ? 0.1 : 0;
+      expect(plain[knob]).toBeCloseTo(0.5 + boost, 3);
+    }
+
+    const weakClassify = nextDifficulty(
+      { ...base, ratings: { ...base.ratings, classify: 900 } },
+      seed,
+    );
+    expect(weakClassify.ambiguity).toBeCloseTo(0.6, 3);
+    expect(weakClassify.degradation).toBeCloseTo(0.6, 3);
+    expect(weakClassify.speed).toBeCloseTo(0.5, 3);
+    expect(weakClassify.threatCount).toBeCloseTo(0.5, 3);
   });
 
   it('returns exactly the seven schema fields', () => {
@@ -223,50 +338,36 @@ describe('nextDifficulty', () => {
   });
 
   it('clamps every knob to [0, 1]', () => {
-    const high = nextDifficulty(
-      profileWith({
-        detect: 4000,
-        classify: 4000,
-        prioritise: 4000,
-        engage: 4000,
-        roe: 4000,
-        trust: 4000,
-      }),
-      withoutExploration(),
-    );
-    const low = nextDifficulty(
-      profileWith({
-        detect: -2000,
-        classify: -2000,
-        prioritise: -2000,
-        engage: -2000,
-        roe: -2000,
-        trust: -2000,
-      }),
-      withoutExploration(),
-    );
-    for (const knob of KNOB_KEYS) {
-      expect(high[knob]).toBeLessThanOrEqual(1);
-      expect(high[knob]).toBeGreaterThanOrEqual(0.95);
-      expect(low[knob]).toBeGreaterThanOrEqual(0);
-      expect(low[knob]).toBeLessThanOrEqual(0.2);
-    }
+    const all = (value: number) => ({
+      detect: value,
+      classify: value,
+      prioritise: value,
+      engage: value,
+      roe: value,
+      trust: value,
+    });
+    const high = levelsProfile(all(0.95));
+    const low = levelsProfile(all(0.05));
     for (let seed = 1; seed <= 200; seed++) {
-      const d = nextDifficulty(profileWith({ detect: 4000, classify: -2000 }), seed);
-      for (const knob of KNOB_KEYS) {
-        expect(d[knob]).toBeGreaterThanOrEqual(0);
-        expect(d[knob]).toBeLessThanOrEqual(1);
+      for (const profile of [high, low]) {
+        const d = nextDifficulty(profile, seed);
+        for (const knob of KNOB_KEYS) {
+          expect(d[knob]).toBeGreaterThanOrEqual(0);
+          expect(d[knob]).toBeLessThanOrEqual(1);
+        }
       }
     }
+    const top = nextDifficulty(high, withoutExploration());
+    expect(Math.max(...Object.values(top))).toBe(1);
   });
 
   it('is deterministic for a seed', () => {
-    const profile = profileWith({ detect: 1100, classify: 900 });
+    const profile = levelsProfile({ detect: 0.6, classify: 0.4 });
     expect(nextDifficulty(profile, 42)).toEqual(nextDifficulty(profile, 42));
   });
 
   it('jitters every knob only when exploration triggers', () => {
-    const profile = profileWith({ detect: 1100, classify: 900, engage: 1200 });
+    const profile = levelsProfile({ detect: 0.6, classify: 0.4, engage: 0.7 });
     const baseline = nextDifficulty(profile, withoutExploration());
     expect(nextDifficulty(profile, withoutExploration())).toEqual(baseline);
 
@@ -278,8 +379,9 @@ describe('nextDifficulty', () => {
 
     let differing = 0;
     for (let seed = 1; seed <= 400; seed++) {
-      const d = nextDifficulty(profile, seed);
-      if (JSON.stringify(d) !== JSON.stringify(baseline)) differing += 1;
+      if (JSON.stringify(nextDifficulty(profile, seed)) !== JSON.stringify(baseline)) {
+        differing += 1;
+      }
     }
     expect(differing).toBeGreaterThan(10);
     expect(differing).toBeLessThan(100);

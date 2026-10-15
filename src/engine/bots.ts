@@ -96,7 +96,7 @@ function skilledProfile(kind: BotKind, options: BotOptions): Profile {
 
   return {
     salt: (PROFILES[kind].salt ^ mix) >>> 0,
-    detectDelay: [lerp(12, 1, skill), lerp(30, 2, skill)],
+    detectDelay: [lerp(20, 1, skill), lerp(60, 2, skill)],
     classifyDelay: [lerp(2, 0.5, skill), lerp(4, 1, skill)],
     engageDelay: [lerp(1, 0, skill), lerp(4, 0.4, skill)],
     accuracy: lerp(0.6, 1, skill),

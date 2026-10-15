@@ -4,17 +4,21 @@ import type { AnalysisExtras } from './scoring';
 
 export type CompetencyKey = keyof Competencies;
 export type Ratings = Record<CompetencyKey, number>;
+export type Levels = Record<CompetencyKey, number>;
 export type KnobKey = keyof Difficulty;
 
 export interface HistoryEntry {
   difficulty: Difficulty;
   competencies: Competencies;
   ratings: Ratings;
+  levels?: Levels;
 }
 
 export interface SkillProfile {
   traineeId: string;
   ratings: Ratings;
+  levels: Levels;
+  smoothed: Levels;
   sessions: number;
   history: HistoryEntry[];
 }
@@ -42,9 +46,14 @@ export const INITIAL_RATING = 1000;
 
 const REFERENCE_BASE = 700;
 const REFERENCE_SPAN = 600;
-const TARGET_SUCCESS_OFFSET = 147;
-const MIN_TARGET = 0.05;
-const MAX_TARGET = 0.95;
+export const INITIAL_LEVEL = 0.3;
+export const INITIAL_SMOOTHED = 0.75;
+const SMOOTHING = 0.5;
+const CONTROLLER_GAIN = 0.6;
+const SETPOINT = 0.75;
+const MAX_STEP = 0.12;
+const MIN_LEVEL = 0.05;
+const MAX_LEVEL = 0.95;
 const K_EARLY = 100;
 const K_MIDDLE = 60;
 const K_LATE = 40;
@@ -107,17 +116,23 @@ export function expectedSuccess(rating: number, level: number): number {
   return 1 / (1 + 10 ** ((reference - rating) / 400));
 }
 
+function uniformLevels(value: number): Levels {
+  return {
+    detect: value,
+    classify: value,
+    prioritise: value,
+    engage: value,
+    roe: value,
+    trust: value,
+  };
+}
+
 export function createProfile(traineeId: string): SkillProfile {
   return {
     traineeId,
-    ratings: {
-      detect: INITIAL_RATING,
-      classify: INITIAL_RATING,
-      prioritise: INITIAL_RATING,
-      engage: INITIAL_RATING,
-      roe: INITIAL_RATING,
-      trust: INITIAL_RATING,
-    },
+    ratings: uniformLevels(INITIAL_RATING),
+    levels: uniformLevels(INITIAL_LEVEL),
+    smoothed: uniformLevels(INITIAL_SMOOTHED),
     sessions: 0,
     history: [],
   };
@@ -131,6 +146,8 @@ export function updateSkill(
 ): SkillProfile {
   const k = kFactor(profile.sessions);
   const ratings: Ratings = { ...profile.ratings };
+  const levels: Levels = { ...(profile.levels ?? uniformLevels(INITIAL_LEVEL)) };
+  const smoothed: Levels = { ...(profile.smoothed ?? uniformLevels(INITIAL_SMOOTHED)) };
 
   for (const key of COMPETENCY_KEYS) {
     const stage = STAGE_OF[key];
@@ -140,11 +157,17 @@ export function updateSkill(
     const score = report.competencies[key] / 100;
     const expected = expectedSuccess(ratings[key], levelFor(key, servedDifficulty));
     ratings[key] += k * (score - expected);
+
+    smoothed[key] = SMOOTHING * smoothed[key] + (1 - SMOOTHING) * score;
+    const step = clamp(CONTROLLER_GAIN * (smoothed[key] - SETPOINT), -MAX_STEP, MAX_STEP);
+    levels[key] = clamp(levels[key] + step, MIN_LEVEL, MAX_LEVEL);
   }
 
   return {
     traineeId: profile.traineeId,
     ratings,
+    levels,
+    smoothed,
     sessions: profile.sessions + 1,
     history: [
       ...profile.history,
@@ -152,17 +175,10 @@ export function updateSkill(
         difficulty: { ...servedDifficulty },
         competencies: { ...report.competencies },
         ratings: { ...ratings },
+        levels: { ...levels },
       },
     ],
   };
-}
-
-export function targetLevel(rating: number): number {
-  return clamp(
-    (rating - TARGET_SUCCESS_OFFSET - REFERENCE_BASE) / REFERENCE_SPAN,
-    MIN_TARGET,
-    MAX_TARGET,
-  );
 }
 
 export function weakestCompetency(profile: SkillProfile): CompetencyKey {
@@ -175,16 +191,14 @@ export function weakestCompetency(profile: SkillProfile): CompetencyKey {
 
 export function nextDifficulty(profile: SkillProfile, seed: number): Difficulty {
   const rng = mulberry32(seed >>> 0);
-  const targets = Object.fromEntries(
-    COMPETENCY_KEYS.map((key) => [key, targetLevel(profile.ratings[key])]),
-  ) as Record<CompetencyKey, number>;
+  const levels = profile.levels ?? uniformLevels(INITIAL_LEVEL);
   const emphasised = new Set(OWNED_KNOBS[weakestCompetency(profile)]);
   const explore = rng() < EXPLORE_PROBABILITY;
 
   const next = {} as Difficulty;
   for (const knob of KNOB_KEYS) {
     const owners = COMPETENCY_KEYS.filter((key) => OWNED_KNOBS[key].includes(knob));
-    let level = mean(owners.map((key) => targets[key]));
+    let level = mean(owners.map((key) => levels[key]));
     if (emphasised.has(knob)) level += WEAKEST_BOOST;
     if (explore) level += (rng() * 2 - 1) * EXPLORE_SPAN;
     next[knob] = Math.round(clamp(level, 0, 1) * 1000) / 1000;

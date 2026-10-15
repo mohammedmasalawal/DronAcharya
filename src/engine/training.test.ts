@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { replayEvents } from '../sim';
-import { COMPETENCY_KEYS, INITIAL_RATING, examConfig } from './adaptive';
-import { simulateTraining } from './training';
+import { COMPETENCY_KEYS, INITIAL_RATING, examConfig, type CompetencyKey } from './adaptive';
+import { simulateTraining, type TrainingSession } from './training';
 
 const mean = (values: number[]) => values.reduce((sum, v) => sum + v, 0) / values.length;
 const meanDifficulty = (d: Record<string, number>) => mean(Object.values(d));
@@ -163,4 +163,69 @@ describe('adaptive responsiveness for a skill 0.3 trainee over 12 sessions', () 
       }
     }
   }, 120_000);
+});
+
+describe('proportional controller acceptance', () => {
+  const STAGE_FOR: Partial<Record<CompetencyKey, string>> = {
+    detect: 'detection',
+    classify: 'classification',
+    prioritise: 'assessment',
+    engage: 'engagement',
+    roe: 'engagement',
+  };
+
+  const scoredMean = (session: TrainingSession): number =>
+    mean(
+      COMPETENCY_KEYS.filter((key) =>
+        key === 'trust'
+          ? session.extras.trustSamples > 0
+          : !session.extras.droppedStages.includes(STAGE_FOR[key] as never),
+      ).map((key) => session.report.competencies[key]),
+    );
+
+  const constantSkill = (skill: number) =>
+    [1, 2, 3, 4, 5, 6].map((seed) =>
+      simulateTraining({
+        traineeId: 'cadet',
+        sessions: 12,
+        skill,
+        trustBias: 0,
+        learningRate: 0,
+        seed,
+      }),
+    );
+
+  it('serves a skill 1.0 trainee a mean difficulty of at least 0.75 in sessions 9 to 12', () => {
+    for (const run of constantSkill(1)) {
+      expect(
+        mean(run.slice(8, 12).map((s) => meanDifficulty(s.difficulty))),
+      ).toBeGreaterThanOrEqual(0.75);
+    }
+  }, 120_000);
+
+  it('keeps a skill 0.0 trainee at a mean difficulty of at most 0.35 in sessions 9 to 12', () => {
+    for (const run of constantSkill(0)) {
+      expect(mean(run.slice(8, 12).map((s) => meanDifficulty(s.difficulty)))).toBeLessThanOrEqual(
+        0.35,
+      );
+    }
+  }, 120_000);
+
+  it('holds a constant skill 0.5 trainee between 62 and 88 on the scored competencies', () => {
+    const runs = constantSkill(0.5);
+    const score = mean(runs.flatMap((run) => run.slice(5, 12).map(scoredMean)));
+    expect(score).toBeGreaterThanOrEqual(62);
+    expect(score).toBeLessThanOrEqual(88);
+  }, 120_000);
+
+  it('orders served difficulty by skill', () => {
+    const level = (skill: number) =>
+      mean(
+        constantSkill(skill).flatMap((run) =>
+          run.slice(8, 12).map((s) => meanDifficulty(s.difficulty)),
+        ),
+      );
+    expect(level(0)).toBeLessThan(level(0.5));
+    expect(level(0.5)).toBeLessThan(level(1));
+  }, 180_000);
 });

@@ -22,11 +22,28 @@ export const HistoryEntrySchema = z.object({
   difficulty: DifficultySchema,
   competencies: CompetenciesSchema,
   ratings: RatingsSchema,
+  levels: RatingsSchema.optional(),
 });
 
 export const SkillProfileSchema = z.object({
   traineeId: z.string(),
   ratings: RatingsSchema,
+  levels: RatingsSchema.default({
+    detect: 0.3,
+    classify: 0.3,
+    prioritise: 0.3,
+    engage: 0.3,
+    roe: 0.3,
+    trust: 0.3,
+  }),
+  smoothed: RatingsSchema.default({
+    detect: 0.75,
+    classify: 0.75,
+    prioritise: 0.75,
+    engage: 0.75,
+    roe: 0.75,
+    trust: 0.75,
+  }),
   sessions: z.number().int().nonnegative(),
   history: z.array(HistoryEntrySchema),
 });
