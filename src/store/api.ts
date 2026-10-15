@@ -15,6 +15,7 @@ export interface SaveSessionInput {
   endedAtSec: number;
   traineeId: string;
   unitId: string;
+  examId?: string;
 }
 
 export interface UnitReport {
@@ -77,12 +78,30 @@ export async function saveSession(input: SaveSessionInput): Promise<string> {
       endedAtSec: input.endedAtSec,
       report,
       extras: analysis.extras,
+      ...(input.examId === undefined ? {} : { examId: input.examId }),
       createdAt: now,
     });
     await db.skillProfiles.put(updated);
 
     return id;
   });
+}
+
+export async function countSessions(): Promise<number> {
+  return db.sessions.count();
+}
+
+export async function listUnitSessions(unitId: string): Promise<SessionRecord[]> {
+  const rows = await db.sessions.where('unitId').equals(unitId).toArray();
+  return rows.sort(byCreatedThenId);
+}
+
+export async function getUnit(id: string): Promise<UnitRecord | undefined> {
+  return db.units.get(id);
+}
+
+export async function getTrainee(id: string): Promise<TraineeRecord | undefined> {
+  return db.trainees.get(id);
 }
 
 export async function getSession(id: string): Promise<SessionRecord | undefined> {
@@ -185,6 +204,7 @@ export async function runTrainingLoop(
         endedAtSec: session.endedAtSec,
         traineeId,
         unitId,
+        ...(session.isExam && options.exam?.id ? { examId: options.exam.id } : {}),
       }),
     );
   }

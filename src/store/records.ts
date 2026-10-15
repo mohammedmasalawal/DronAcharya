@@ -91,6 +91,7 @@ export const SessionRecordSchema = z.object({
   endedAtSec: z.number(),
   report: ScoreReportSchema,
   extras: ExtrasSchema,
+  examId: z.string().optional(),
   createdAt: z.number(),
 });
 

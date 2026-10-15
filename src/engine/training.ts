@@ -13,6 +13,7 @@ const SCENARIO_SALT = 0;
 const DIFFICULTY_SALT = 5000;
 
 export interface TrainingExam {
+  id?: string;
   sessionIndex: number;
   seed: number;
   difficulty: Difficulty;

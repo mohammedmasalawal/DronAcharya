@@ -81,7 +81,7 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - `world.rejected` lists inputs the sim refused: `unknown_threat`, `not_active`, `not_visible`, `already_detected`, `not_detected`, `engagement_in_progress`, `no_ammo`, `out_of_range`.
 - `finish(world)` ends a session early and emits `ignored` for everything still airborne.
 - `replayEvents(spec, log, endedAtSec)` and `worldAtTime(spec, log, t, endedAtSec)` rebuild a world from a log by re-feeding its inputs; a replay of a live log must equal the log.
-- Routes: `/play/:examId` and `/replay/:sessionId?t=seconds`. `examId` maps to a seed (numeric ids are used as the seed, other strings are hashed) and the spec comes from `generateScenario` with all difficulty axes at 0.5.
+- Routes: `/play/:examId` and `/replay/:sessionId?t=seconds` (the dashboard adds `/review`, `/debrief/:sessionId`, `/progress/:traineeId` and `/unit/:unitId`, see below). `examId` maps to a seed (numeric ids are used as the seed, other strings are hashed) and the spec comes from `generateScenario` with all difficulty axes at 0.5.
 - `src/client/storage.ts` is an interim Dexie store (`dronacharya-client`, table `sessions`: id, examId, traineeId, spec, log, endedAtSec, savedAt). Move to `src/store` when it exists.
 
 ## Scoring engine (src/engine)
@@ -149,6 +149,57 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - Exam level: a common exam is a fixed point on every trainee's chart, so it is set to 0.4, about where an average trainee has arrived by session 12. At 0.5 the exam sat above most trainees' adaptive level and pulled the session 10 to 12 mean down (4 of 12 base seeds met the acceptance bar; 12 of 12 at 0.4). The exam session therefore shows a fixed difficulty of 0.4 on the difficulty chart.
 - `pnpm curriculum:check` compares adaptive, three fixed ladders (start 0.2, +0.02, +0.04, +0.06 per session), a constant 0.5 and random difficulty on 30 seeded synthetic trainees (start skill U(0.1, 0.5), learning rate U(0.02, 0.08), 15 sessions) under two assumed learner models: `skill += rate * max(0, 1 - tolerance * |served - comfortable|)` with comfortable `0.15 + 0.7 * skill` and tolerance 2.5 (model A) or `0.1 + 0.6 * skill` and tolerance 2.0 (model B). Both are assumptions, labelled as such in the output. It prints mean and 10th percentile final skill, mean total of the last 3 sessions and mean served difficulty for each curriculum, and states plainly whether adaptive beats the best fixed ladder.
 - Load it in the app with `importDemoData(await (await fetch('/demo-data.json')).json())` or import the JSON directly; `buildDemoData()` rebuilds it in memory.
+
+## After-action review dashboard (src/dashboard)
+
+### Routes
+
+- `/review`: picker of units and trainees, demo banner, one-line explanation of each screen.
+- `/debrief/:sessionId`: one session. The `:sessionId` segment is URL-encoded (session ids are `${scenarioId}:${traineeId}:${n}` and contain colons); the matcher decodes it. Build links with `sessionUrl('debrief', id)`.
+- `/progress/:traineeId`: competency trend, Elo ratings, controller levels, difficulty and novelty, totals, confusion matrix, reaction by condition, session list.
+- `/unit/:unitId`: heatmap, conditions the unit handles worst, exam comparison, ranking.
+- Replay deep links are `/replay/:sessionId?t=<seconds>` with the session id encoded (`replayUrl(id, t)`), pointing at `decisionTime` for each lost decision.
+
+### Registering the routes (the one edit outside the lane)
+
+`src/dashboard/index.ts` exports `dashboardRoutes` (`{pattern, component}[]`) and `matchDashboardRoute(pathname)`. The client router does not know these paths, so `src/client/App.tsx` hands unmatched paths to the dashboard in its `notFound` case:
+
+```tsx
+import { matchDashboardRoute } from '../dashboard';
+case 'notFound': {
+  const match = matchDashboardRoute(window.location.pathname);
+  if (match) {
+    const Page = match.route.component;
+    return <Page params={match.params} />;
+  }
+  return (<div className="center">...</div>);
+}
+```
+
+Importing `../dashboard` also loads `dashboard.css`. The dashboard imports `navigate` from `src/client/router.ts`; if Person A renames it, update `src/dashboard/ui.tsx`.
+
+### What Person A needs to change for replay and live data
+
+- `src/client/Replay.tsx` loads sessions from the interim `src/client/storage.ts`, so a dashboard Replay link for a session saved by `src/store` (including all demo sessions) shows "No session found". Load with `getSession(id)` from `../store` (fall back to the interim store) and use `record.spec`, `record.log` and `record.endedAtSec`.
+- `src/client/Play.tsx` also saves only to the interim store, so live sessions never reach the dashboard. Call `saveSession({spec, log, endedAtSec, traineeId, unitId, examId?})` from `../store` and navigate to `/debrief/<encoded id>`; pass `examId` when the session is a unit exam so it is excluded from trend lines.
+
+### Data and exams
+
+- `SessionRecord.examId` is optional and additive. A session with an `examId` is an exam session: it is excluded from every trend line, the heatmap and the ranking, and plotted as a separate marker series. `saveSession` accepts `examId`; the demo generator sets it (`demo-alpha-exam`, `demo-bravo-exam`).
+- `src/store` gained `countSessions`, `listUnitSessions`, `getUnit` and `getTrainee`.
+- Demo mode: on first load, if the store has no sessions, the dashboard imports `data/demo/demo-data.json` (a lazily loaded chunk) and shows the banner "Demo data (synthetic trainees)" with a Reset demo data button (`resetDemoData`, then re-import). The banner shows whenever the loaded trainees' ids start with `demo-`.
+
+### Aggregation helpers (`src/dashboard/data.ts`, pure)
+
+`competencyTrend`, `difficultyTrend`, `noveltyTrend`, `totalSeries`, `eloTrend` (Elo history aligned with the chronological sessions, exam sessions dropped), `confusionMatrix` (true class by the class chosen in the last classify before the first engage, or the last overall, plus an unclassified column; threats with no observable event are excluded), `reactionByCondition` (detect minus observable, grouped day, dusk, night, degraded, fog and rain; a session can count in several groups), `unitHeatmap` (mean of each trainee's last 3 non-exam sessions), `conditionDifficulty` (mean total and competencies by terrain, time of day and weather over all unit sessions, the worst row in each dimension flagged), `examComparison`, `ranking` (mean total of the last 3 non-exam sessions, critical-fail count over all sessions, session count), `decisionTime` (detection: detect time; classification: the classify used; assessment: last rank; engagement: engage, else result; outcome: result; falling back to observable, then 0), `pointsLost`, `stageTotals`, `trustBreakdown`, `threatTimeline`.
+
+### Feedback (`src/dashboard/feedback.ts`)
+
+`feedback(spec, log, report, extras)` returns at most 3 sentences ranked by severity: engaging a friendly (critical fail), engaging birds or civilians, rules-of-engagement violations, jamming RF-silent drones, jamming a swarm before classifying all members, following a wrong assistant suggestion, a repeated confusion pair under the scenario's condition, late detection under the weather. A session with no findings gets one positive sentence. It is deterministic and pure.
+
+### Printing
+
+`dashboard.css` carries a print stylesheet: light theme, navigation, banner and buttons hidden, cards and charts kept whole across pages, A4 with 10 mm margins. Ctrl+P on any screen produces a clean PDF.
 
 ## Commands
 

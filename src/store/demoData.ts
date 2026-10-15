@@ -119,6 +119,7 @@ export function buildDemoData(): DemoData {
         learningRate: DEMO_LEARNING_RATE,
         seed: 1000 + unitIndex * 100 + traineeIndex * 17,
         exam: {
+          id: `${unit.id}-exam`,
           sessionIndex: DEMO_SESSIONS_PER_TRAINEE - 1,
           seed: config.seed,
           difficulty: config.difficulty,
@@ -136,6 +137,7 @@ export function buildDemoData(): DemoData {
           endedAtSec: session.endedAtSec,
           report: session.report,
           extras: session.extras,
+          ...(session.isExam ? { examId: `${unit.id}-exam` } : {}),
           createdAt:
             BASE_TIME_MS + session.index * DAY_MS + (unitIndex * 4 + traineeIndex) * HOUR_MS,
         });
