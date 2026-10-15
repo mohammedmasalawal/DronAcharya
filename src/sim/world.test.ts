@@ -303,6 +303,14 @@ describe('determinism', () => {
     expect(replayEvents(spec, log)).toEqual(live.events);
   });
 
+  it('replays a session that was ended early', () => {
+    const live = runUntil(createWorld(spec), 42, script);
+    finish(live);
+    const log = { scenarioId: spec.id, traineeId: 'x', events: live.events };
+    expect(replayEvents(spec, log, live.t)).toEqual(live.events);
+    expect(live.events.at(-1)).toMatchObject({ type: 'result', outcome: 'ignored', t: live.t });
+  });
+
   it('keeps the assistant suggestion seeded', () => {
     const a = createWorld(spec).threats.map((t) => t.assistantSuggestion);
     const b = createWorld(spec).threats.map((t) => t.assistantSuggestion);

@@ -1,5 +1,5 @@
 import type { ScenarioSpec, SessionEvent, SessionLog } from '../schema';
-import { createWorld, step, TIMESTEP_SEC } from './world';
+import { createWorld, finish, step, TIMESTEP_SEC } from './world';
 import type { SimInput, World } from './types';
 
 function toInput(event: SessionEvent): SimInput | null {
@@ -33,16 +33,27 @@ export function inputsByTick(log: SessionLog): Map<number, SimInput[]> {
   return byTick;
 }
 
-export function worldAtTime(spec: ScenarioSpec, log: SessionLog, seconds: number): World {
+export function worldAtTime(
+  spec: ScenarioSpec,
+  log: SessionLog,
+  seconds: number,
+  endedAtSec: number = spec.durationSec,
+): World {
   const inputs = inputsByTick(log);
-  const targetTick = Math.round(seconds / TIMESTEP_SEC);
+  const endTick = Math.round(endedAtSec / TIMESTEP_SEC);
+  const targetTick = Math.min(Math.round(seconds / TIMESTEP_SEC), endTick);
   const world = createWorld(spec);
   while (world.tick < targetTick && !world.done) {
     step(world, inputs.get(world.tick) ?? [], TIMESTEP_SEC);
   }
+  if (world.tick >= endTick) finish(world);
   return world;
 }
 
-export function replayEvents(spec: ScenarioSpec, log: SessionLog): SessionEvent[] {
-  return worldAtTime(spec, log, spec.durationSec).events;
+export function replayEvents(
+  spec: ScenarioSpec,
+  log: SessionLog,
+  endedAtSec: number = spec.durationSec,
+): SessionEvent[] {
+  return worldAtTime(spec, log, endedAtSec, endedAtSec).events;
 }
