@@ -11,17 +11,17 @@ On Windows without symlink permission, `pnpm-workspace.yaml` sets `nodeLinker: h
 
 ## Commands
 
-| Command                              | What it does                                        |
-| ------------------------------------ | --------------------------------------------------- |
-| `pnpm install`                       | Install dependencies                                |
-| `pnpm dev`                           | Start the Vite dev server                           |
-| `pnpm build`                         | Typecheck and build the static site into `dist/`    |
-| `pnpm preview`                       | Serve the production build locally                  |
-| `pnpm test`                          | Run vitest                                          |
-| `pnpm typecheck`                     | Run `tsc --noEmit`                                  |
-| `pnpm lint`                          | Run eslint                                          |
-| `pnpm format`                        | Run prettier                                        |
-| `pnpm sim:run --seed 1 --bot expert` | Generate, simulate, bot-play and score one scenario |
+| Command                                               | What it does                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm install`                                        | Install dependencies                                                                |
+| `pnpm dev`                                            | Start the Vite dev server                                                           |
+| `pnpm build`                                          | Typecheck and build the static site into `dist/`                                    |
+| `pnpm preview`                                        | Serve the production build locally                                                  |
+| `pnpm test`                                           | Run vitest                                                                          |
+| `pnpm typecheck`                                      | Run `tsc --noEmit`                                                                  |
+| `pnpm lint`                                           | Run eslint                                                                          |
+| `pnpm format`                                         | Run prettier                                                                        |
+| `pnpm sim:run --seed 1 --bot expert --difficulty 0.5` | Generate, bot-play and score one scenario (`--scripted <name>` runs a scripted one) |
 
 `--bot` is one of `expert`, `novice`, `overtrusting`.
 

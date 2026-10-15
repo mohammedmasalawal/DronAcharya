@@ -1,0 +1,228 @@
+{
+  "id": "scripted-mixed-class-finale",
+  "seed": 9010,
+  "mapType": "industrial",
+  "timeOfDay": "dusk",
+  "weather": "rain",
+  "durationSec": 240,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 0.85
+    },
+    {
+      "type": "eoir",
+      "health": 0.8,
+      "failAtSec": 120
+    },
+    {
+      "type": "rf",
+      "health": 0.9
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    },
+    {
+      "id": "a2",
+      "x": -150,
+      "y": 120,
+      "value": 60
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 15.0,
+      "bearingDeg": 150.0,
+      "rangeM": 3200,
+      "altM": 70,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t2",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 15.4,
+      "bearingDeg": 151.5,
+      "rangeM": 3230,
+      "altM": 70,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t3",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 15.8,
+      "bearingDeg": 153.0,
+      "rangeM": 3260,
+      "altM": 70,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t4",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 16.2,
+      "bearingDeg": 154.5,
+      "rangeM": 3290,
+      "altM": 70,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t5",
+      "cls": "fpv",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 50,
+      "bearingDeg": 330,
+      "rangeM": 2900,
+      "altM": 25,
+      "speedMps": 55,
+      "behavior": "terrain_mask"
+    },
+    {
+      "id": "t6",
+      "cls": "fpv",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 52,
+      "bearingDeg": 340,
+      "rangeM": 3000,
+      "altM": 25,
+      "speedMps": 55,
+      "behavior": "terrain_mask"
+    },
+    {
+      "id": "t7",
+      "cls": "fixedwing",
+      "hostile": true,
+      "rfEmitting": false,
+      "spawnAtSec": 40,
+      "bearingDeg": 250,
+      "rangeM": 3800,
+      "altM": 140,
+      "speedMps": 38,
+      "behavior": "evasive"
+    },
+    {
+      "id": "t8",
+      "cls": "loiter",
+      "hostile": true,
+      "rfEmitting": false,
+      "spawnAtSec": 70,
+      "bearingDeg": 60,
+      "rangeM": 3300,
+      "altM": 100,
+      "speedMps": 26,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t9",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 10,
+      "bearingDeg": 90,
+      "rangeM": 2600,
+      "altM": 60,
+      "speedMps": 9,
+      "behavior": "direct"
+    },
+    {
+      "id": "t10",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 35,
+      "bearingDeg": 210,
+      "rangeM": 2800,
+      "altM": 70,
+      "speedMps": 10,
+      "behavior": "direct"
+    },
+    {
+      "id": "t11",
+      "cls": "civilian",
+      "hostile": false,
+      "rfEmitting": true,
+      "spawnAtSec": 25,
+      "bearingDeg": 10,
+      "rangeM": 3500,
+      "altM": 280,
+      "speedMps": 32,
+      "behavior": "direct"
+    },
+    {
+      "id": "t12",
+      "cls": "friendly",
+      "hostile": false,
+      "rfEmitting": true,
+      "spawnAtSec": 45,
+      "bearingDeg": 120,
+      "rangeM": 3000,
+      "altM": 130,
+      "speedMps": 20,
+      "behavior": "direct"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.8,
+    "speed": 0.7,
+    "altitude": 0.7,
+    "evasiveness": 0.6,
+    "ambiguity": 0.7,
+    "degradation": 0.5,
+    "timePressure": 0.6
+  },
+  "noveltyScore": 1
+}

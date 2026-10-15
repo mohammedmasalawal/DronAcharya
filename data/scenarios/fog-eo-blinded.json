@@ -1,0 +1,121 @@
+{
+  "id": "scripted-fog-eo-blinded",
+  "seed": 9008,
+  "mapType": "hilly",
+  "timeOfDay": "day",
+  "weather": "fog",
+  "durationSec": 170,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 0.85
+    },
+    {
+      "type": "eoir",
+      "health": 0.5
+    },
+    {
+      "type": "rf",
+      "health": 0.9
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 5,
+      "bearingDeg": 60,
+      "rangeM": 3300,
+      "altM": 100,
+      "speedMps": 20,
+      "behavior": "direct"
+    },
+    {
+      "id": "t2",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 20,
+      "bearingDeg": 300,
+      "rangeM": 3200,
+      "altM": 90,
+      "speedMps": 21,
+      "behavior": "direct"
+    },
+    {
+      "id": "t3",
+      "cls": "fixedwing",
+      "hostile": true,
+      "rfEmitting": false,
+      "spawnAtSec": 25,
+      "bearingDeg": 180,
+      "rangeM": 3800,
+      "altM": 140,
+      "speedMps": 40,
+      "behavior": "direct"
+    },
+    {
+      "id": "t4",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 10,
+      "bearingDeg": 120,
+      "rangeM": 2400,
+      "altM": 60,
+      "speedMps": 9,
+      "behavior": "direct"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.3,
+    "speed": 0.5,
+    "altitude": 0.4,
+    "evasiveness": 0.1,
+    "ambiguity": 0.6,
+    "degradation": 0.7,
+    "timePressure": 0.5
+  },
+  "noveltyScore": 1
+}

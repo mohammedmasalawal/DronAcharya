@@ -60,12 +60,12 @@ function push<T>(map: Map<string, Seq<T>[]>, key: string, entry: Seq<T>): void {
   else map.set(key, [entry]);
 }
 
-function theoreticalEtaSec(threat: Threat, durationSec: number): number {
+export function theoreticalEtaSec(threat: Threat, durationSec: number): number {
   const travel = threat.speedMps > 0 ? threat.rangeM / threat.speedMps : Infinity;
   return Math.min(threat.spawnAtSec + travel, durationSec);
 }
 
-function targetAssetValue(spec: ScenarioSpec, threat: Threat): number {
+export function targetAssetValue(spec: ScenarioSpec, threat: Threat): number {
   const bearing = (threat.bearingDeg * Math.PI) / 180;
   const x = threat.rangeM * Math.sin(bearing);
   const y = threat.rangeM * Math.cos(bearing);

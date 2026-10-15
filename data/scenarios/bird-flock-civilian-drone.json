@@ -1,0 +1,169 @@
+{
+  "id": "scripted-bird-flock-civilian-drone",
+  "seed": 9005,
+  "mapType": "rural",
+  "timeOfDay": "day",
+  "weather": "clear",
+  "durationSec": 180,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 1.0
+    },
+    {
+      "type": "eoir",
+      "health": 1.0
+    },
+    {
+      "type": "rf",
+      "health": 1.0
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 0,
+      "bearingDeg": 30,
+      "rangeM": 1500,
+      "altM": 40,
+      "speedMps": 8,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t2",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 2,
+      "bearingDeg": 52,
+      "rangeM": 1620,
+      "altM": 48,
+      "speedMps": 9,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t3",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 4,
+      "bearingDeg": 74,
+      "rangeM": 1740,
+      "altM": 56,
+      "speedMps": 10,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t4",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 6,
+      "bearingDeg": 96,
+      "rangeM": 1860,
+      "altM": 64,
+      "speedMps": 11,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t5",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 8,
+      "bearingDeg": 118,
+      "rangeM": 1980,
+      "altM": 72,
+      "speedMps": 8,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t6",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 10,
+      "bearingDeg": 140,
+      "rangeM": 2100,
+      "altM": 80,
+      "speedMps": 9,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t7",
+      "cls": "civilian",
+      "hostile": false,
+      "rfEmitting": true,
+      "spawnAtSec": 6,
+      "bearingDeg": 150,
+      "rangeM": 3500,
+      "altM": 250,
+      "speedMps": 28,
+      "behavior": "direct"
+    },
+    {
+      "id": "t8",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 15,
+      "bearingDeg": 280,
+      "rangeM": 3300,
+      "altM": 90,
+      "speedMps": 20,
+      "behavior": "direct"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.4,
+    "speed": 0.2,
+    "altitude": 0.3,
+    "evasiveness": 0.1,
+    "ambiguity": 0.8,
+    "degradation": 0.0,
+    "timePressure": 0.3
+  },
+  "noveltyScore": 1
+}

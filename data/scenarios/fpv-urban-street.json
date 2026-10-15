@@ -1,0 +1,109 @@
+{
+  "id": "scripted-fpv-urban-street",
+  "seed": 9002,
+  "mapType": "urban",
+  "timeOfDay": "day",
+  "weather": "clear",
+  "durationSec": 150,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 0.9
+    },
+    {
+      "type": "eoir",
+      "health": 1.0
+    },
+    {
+      "type": "rf",
+      "health": 1.0
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "fpv",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 8,
+      "bearingDeg": 90,
+      "rangeM": 2600,
+      "altM": 25,
+      "speedMps": 60,
+      "behavior": "terrain_mask"
+    },
+    {
+      "id": "t2",
+      "cls": "fpv",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 14,
+      "bearingDeg": 92,
+      "rangeM": 2800,
+      "altM": 20,
+      "speedMps": 62,
+      "behavior": "terrain_mask"
+    },
+    {
+      "id": "t3",
+      "cls": "civilian",
+      "hostile": false,
+      "rfEmitting": true,
+      "spawnAtSec": 5,
+      "bearingDeg": 270,
+      "rangeM": 3000,
+      "altM": 300,
+      "speedMps": 30,
+      "behavior": "direct"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.2,
+    "speed": 0.8,
+    "altitude": 0.8,
+    "evasiveness": 0.7,
+    "ambiguity": 0.3,
+    "degradation": 0.1,
+    "timePressure": 0.6
+  },
+  "noveltyScore": 1
+}

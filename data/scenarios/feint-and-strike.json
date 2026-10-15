@@ -1,0 +1,133 @@
+{
+  "id": "scripted-feint-and-strike",
+  "seed": 9007,
+  "mapType": "urban",
+  "timeOfDay": "dusk",
+  "weather": "haze",
+  "durationSec": 200,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 0.95
+    },
+    {
+      "type": "eoir",
+      "health": 0.9
+    },
+    {
+      "type": "rf",
+      "health": 1.0
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 5,
+      "bearingDeg": 20,
+      "rangeM": 3500,
+      "altM": 100,
+      "speedMps": 15,
+      "behavior": "direct"
+    },
+    {
+      "id": "t2",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 10,
+      "bearingDeg": 25,
+      "rangeM": 3500,
+      "altM": 100,
+      "speedMps": 15,
+      "behavior": "direct"
+    },
+    {
+      "id": "t3",
+      "cls": "fixedwing",
+      "hostile": true,
+      "rfEmitting": false,
+      "spawnAtSec": 60,
+      "bearingDeg": 200,
+      "rangeM": 3500,
+      "altM": 120,
+      "speedMps": 40,
+      "behavior": "evasive"
+    },
+    {
+      "id": "t4",
+      "cls": "fpv",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 70,
+      "bearingDeg": 200,
+      "rangeM": 2800,
+      "altM": 25,
+      "speedMps": 55,
+      "behavior": "terrain_mask"
+    },
+    {
+      "id": "t5",
+      "cls": "fpv",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 72,
+      "bearingDeg": 205,
+      "rangeM": 2900,
+      "altM": 25,
+      "speedMps": 55,
+      "behavior": "terrain_mask"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.4,
+    "speed": 0.7,
+    "altitude": 0.7,
+    "evasiveness": 0.8,
+    "ambiguity": 0.4,
+    "degradation": 0.2,
+    "timePressure": 0.7
+  },
+  "noveltyScore": 1
+}

@@ -1,0 +1,164 @@
+{
+  "id": "scripted-night-swarm-radar-failure",
+  "seed": 9003,
+  "mapType": "hilly",
+  "timeOfDay": "night",
+  "weather": "clear",
+  "durationSec": 200,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 1.0,
+      "failAtSec": 45
+    },
+    {
+      "type": "eoir",
+      "health": 0.9
+    },
+    {
+      "type": "rf",
+      "health": 1.0
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 10.0,
+      "bearingDeg": 200.0,
+      "rangeM": 3000,
+      "altM": 80,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t2",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 10.4,
+      "bearingDeg": 201.5,
+      "rangeM": 3040,
+      "altM": 80,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t3",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 10.8,
+      "bearingDeg": 203.0,
+      "rangeM": 3080,
+      "altM": 80,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t4",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 11.2,
+      "bearingDeg": 204.5,
+      "rangeM": 3000,
+      "altM": 80,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t5",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 11.6,
+      "bearingDeg": 206.0,
+      "rangeM": 3040,
+      "altM": 80,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t6",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 12.0,
+      "bearingDeg": 207.5,
+      "rangeM": 3080,
+      "altM": 80,
+      "speedMps": 22,
+      "behavior": "swarm",
+      "swarmId": "sw1"
+    },
+    {
+      "id": "t7",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 30,
+      "bearingDeg": 20,
+      "rangeM": 2200,
+      "altM": 50,
+      "speedMps": 8,
+      "behavior": "direct"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.7,
+    "speed": 0.4,
+    "altitude": 0.5,
+    "evasiveness": 0.2,
+    "ambiguity": 0.3,
+    "degradation": 0.6,
+    "timePressure": 0.5
+  },
+  "noveltyScore": 1
+}

@@ -1,0 +1,97 @@
+{
+  "id": "scripted-lone-recon-dusk",
+  "seed": 9001,
+  "mapType": "rural",
+  "timeOfDay": "dusk",
+  "weather": "haze",
+  "durationSec": 240,
+  "sensors": [
+    {
+      "type": "radar",
+      "health": 1.0
+    },
+    {
+      "type": "eoir",
+      "health": 0.9
+    },
+    {
+      "type": "rf",
+      "health": 1.0
+    }
+  ],
+  "effectors": [
+    {
+      "type": "jammer",
+      "rangeM": 3500,
+      "ammo": 6
+    },
+    {
+      "type": "gun",
+      "rangeM": 1300,
+      "ammo": 30
+    },
+    {
+      "type": "net",
+      "rangeM": 600,
+      "ammo": 4
+    },
+    {
+      "type": "spoofer",
+      "rangeM": 2500,
+      "ammo": 3
+    },
+    {
+      "type": "interceptor",
+      "rangeM": 3000,
+      "ammo": 2
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "x": 0,
+      "y": 0,
+      "value": 100
+    }
+  ],
+  "threats": [
+    {
+      "id": "t1",
+      "cls": "quad",
+      "hostile": true,
+      "rfEmitting": true,
+      "spawnAtSec": 5,
+      "bearingDeg": 40,
+      "rangeM": 3200,
+      "altM": 120,
+      "speedMps": 18,
+      "behavior": "loiter"
+    },
+    {
+      "id": "t2",
+      "cls": "bird",
+      "hostile": false,
+      "rfEmitting": false,
+      "spawnAtSec": 20,
+      "bearingDeg": 200,
+      "rangeM": 2600,
+      "altM": 60,
+      "speedMps": 9,
+      "behavior": "direct"
+    }
+  ],
+  "roe": {
+    "requireClassification": true,
+    "minConfidence": 0.6
+  },
+  "difficulty": {
+    "threatCount": 0.1,
+    "speed": 0.2,
+    "altitude": 0.3,
+    "evasiveness": 0.2,
+    "ambiguity": 0.3,
+    "degradation": 0.1,
+    "timePressure": 0.2
+  },
+  "noveltyScore": 1
+}
