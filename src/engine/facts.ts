@@ -27,6 +27,7 @@ export interface ThreatFacts {
   classification: Call | null;
   engage: EngageFact | null;
   engageCount: number;
+  engageGroupCount: number;
   lastOutcome: Outcome | null;
   outcomeAfterEngage: Outcome | null;
   leakAt: number | null;
@@ -135,6 +136,13 @@ export function buildFacts(spec: ScenarioSpec, log: SessionLog): LogFacts {
     return last ? { cls: last.value.cls, confidence: last.value.confidence } : null;
   };
 
+  const groupEngageCount = (threat: Threat): number => {
+    if (threat.swarmId === undefined) return engages.get(threat.id)?.length ?? 0;
+    return spec.threats
+      .filter((mate) => mate.swarmId === threat.swarmId)
+      .reduce((total, mate) => total + (engages.get(mate.id)?.length ?? 0), 0);
+  };
+
   const scored: ThreatFacts[] = [];
   const excludedThreatIds: string[] = [];
 
@@ -203,6 +211,7 @@ export function buildFacts(spec: ScenarioSpec, log: SessionLog): LogFacts {
           }
         : null,
       engageCount: ownEngages.length,
+      engageGroupCount: groupEngageCount(threat),
       lastOutcome: threatResults.at(-1)?.value.outcome ?? null,
       outcomeAfterEngage: afterEngage,
       leakAt: leak ? leak.value.t : null,

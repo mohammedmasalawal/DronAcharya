@@ -3,10 +3,17 @@ import type { ThreatFacts } from './facts';
 
 export type Flag = 'miss' | 'wasted_effort';
 
+export interface Modifier {
+  condition: ConditionId;
+  reason: string;
+}
+
 export interface Verdict {
   condition: ConditionId;
   reason: string;
   flags: Flag[];
+  fallbacks?: ConditionId[];
+  modifiers?: Modifier[];
 }
 
 interface Band {
@@ -23,6 +30,8 @@ function bandsFor(pattern: RegExp): Band[] {
 
 const REACTION_BANDS = bandsFor(/^reaction<=(\d+(?:\.\d+)?)$/);
 const RANK_BANDS = bandsFor(/^rank_within_(\d+)$/);
+
+const EARLY_FRACTION = 0.5;
 
 const DRONE_CLASSES: ThreatClass[] = ['quad', 'fpv', 'fixedwing', 'loiter'];
 
@@ -213,11 +222,20 @@ export function outcomeVerdict(facts: ThreatFacts): Verdict {
 
   switch (lastOutcome) {
     case 'neutralised': {
-      const when =
-        facts.neutralisedAt === null
-          ? ''
-          : `, ${seconds(facts.neutralisedAt - facts.observableAt)} after observable`;
-      return { condition: 'neutralised', reason: `Neutralised (${spent}${when})`, flags: [] };
+      const elapsed = (facts.neutralisedAt ?? facts.observableAt) - facts.observableAt;
+      const early = elapsed <= EARLY_FRACTION * facts.warningWindowSec;
+      const heavy = facts.engageGroupCount > 1;
+      return {
+        condition: early ? 'neutralised_early' : 'neutralised_late',
+        fallbacks: ['neutralised'],
+        reason: `Neutralised ${seconds(elapsed)} after observable in a ${seconds(
+          facts.warningWindowSec,
+        )} window (${spent})`,
+        flags: [],
+        modifiers: heavy
+          ? [{ condition: 'ammo_heavy', reason: `${facts.engageGroupCount} engages spent` }]
+          : [],
+      };
     }
     case 'leak':
       return {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  CONDITION_IDS,
   ScoreReportSchema,
   ScoringTreeSchema,
   type ConditionId,
@@ -15,6 +16,22 @@ import { analyseSession, scoreSession } from './scoring';
 const tree: ScoringTree = ScoringTreeSchema.parse(
   JSON.parse(readFileSync('data/scoring-tree.default.json', 'utf8')),
 );
+
+const legacyTree: ScoringTree = {
+  ...tree,
+  nodes: tree.nodes
+    .filter((node) => node.id !== 'outcome.ammo')
+    .map((node) => ({
+      ...node,
+      branches: node.branches.flatMap((branch) => {
+        if (branch.condition === 'neutralised_late') return [];
+        if (branch.condition === 'neutralised_early') {
+          return [{ condition: 'neutralised' as const, points: 1, label: 'Threat neutralised' }];
+        }
+        return [branch];
+      }),
+    })),
+};
 
 const STAGES: Stage[] = ['detection', 'classification', 'assessment', 'engagement', 'outcome'];
 
@@ -96,8 +113,14 @@ const result = (
 
 const log = (events: SessionEvent[]) => ({ scenarioId: 'scn', traineeId: 'trainee', events });
 
-function conditionFor(events: SessionEvent[], scn: ScenarioSpec, id: string, stage: Stage) {
-  const { extras } = analyseSession(scn, log(events), tree);
+function conditionFor(
+  events: SessionEvent[],
+  scn: ScenarioSpec,
+  id: string,
+  stage: Stage,
+  usingTree: ScoringTree = tree,
+) {
+  const { extras } = analyseSession(scn, log(events), usingTree);
   return extras.verdicts.find((v) => v.threatId === id && v.stage === stage)?.condition;
 }
 
@@ -347,7 +370,7 @@ describe('engagement decisions', () => {
     ];
     const { extras } = analyseSession(scn, log(events), tree);
     expect(conditionFor(events, scn, 'h1', 'engagement')).toBe('hostile_roe_met_wrong_effector');
-    expect(conditionFor(events, scn, 'h1', 'outcome')).toBe('neutralised');
+    expect(conditionFor(events, scn, 'h1', 'outcome', legacyTree)).toBe('neutralised');
     expect(extras.wastedEffort).toEqual(['h1']);
     expect(extras.engageCounts.h1).toBe(2);
   });
@@ -451,7 +474,8 @@ describe('swarm coverage', () => {
       expect(conditionFor(events, swarm, id, 'engagement')).toBe(
         'hostile_roe_met_correct_effector',
       );
-      expect(conditionFor(events, swarm, id, 'outcome')).toBe('neutralised');
+      expect(conditionFor(events, swarm, id, 'outcome', legacyTree)).toBe('neutralised');
+      expect(conditionFor(events, swarm, id, 'outcome')).toBe('neutralised_early');
     }
     expect(report.critical).toEqual([]);
     expect(extras.engageCounts).toEqual({ s1: 1, s2: 0, s3: 0 });
@@ -508,7 +532,7 @@ describe('result mapping', () => {
   ] as const)('%s', (_name, traits, outcome, expected) => {
     const scn = spec([threat({ id: 'x', ...traits })]);
     const events = [observable('x'), result('x', 50, outcome)];
-    expect(conditionFor(events, scn, 'x', 'outcome')).toBe(expected as ConditionId);
+    expect(conditionFor(events, scn, 'x', 'outcome', legacyTree)).toBe(expected as ConditionId);
   });
 
   it('gives a leak zero outcome points', () => {
@@ -638,5 +662,180 @@ describe('tree validation', () => {
       criticalFails: [{ id: 'x', condition: 'made_up_condition', label: 'x' }],
     };
     expect(() => ScoringTreeSchema.parse(bad)).toThrow();
+  });
+});
+
+describe('neutralisation timing and ammunition', () => {
+  const single = spec([threat({ id: 'h1', rangeM: 3000, speedMps: 30 })]);
+  const prelude = [observable('h1'), detect('h1', 1), classify('h1', 2, 'quad')];
+  const outcomeDecision = (events: SessionEvent[], scn: ScenarioSpec, usingTree = tree) =>
+    analyseSession(scn, log(events), usingTree).report.decisions.find(
+      (d) => d.stage === 'outcome',
+    )!;
+
+  it('scores neutralised_early when neutralised within half the warning window', () => {
+    const events = [...prelude, engage('h1', 40), result('h1', 50, 'neutralised')];
+    expect(conditionFor(events, single, 'h1', 'outcome')).toBe('neutralised_early');
+    const decision = outcomeDecision(events, single);
+    expect(decision.points).toBeCloseTo(decision.max, 6);
+    expect(decision.nodePath).toEqual(['outcome.result']);
+  });
+
+  it('scores neutralised_late when neutralised after half the warning window', () => {
+    const events = [...prelude, engage('h1', 60), result('h1', 70, 'neutralised')];
+    expect(conditionFor(events, single, 'h1', 'outcome')).toBe('neutralised_late');
+    const decision = outcomeDecision(events, single);
+    expect(decision.points).toBeCloseTo(0.6 * decision.max, 6);
+  });
+
+  it('puts the boundary at exactly half the window into early', () => {
+    const events = [...prelude, engage('h1', 49), result('h1', 50, 'neutralised')];
+    expect(conditionFor(events, single, 'h1', 'outcome')).toBe('neutralised_early');
+  });
+
+  it('deducts ammo_heavy on top of the timing branch and records both nodes', () => {
+    const events = [
+      ...prelude,
+      engage('h1', 20, 'gun'),
+      result('h1', 21, 'wasted'),
+      engage('h1', 22),
+      result('h1', 23, 'neutralised'),
+    ];
+    const { extras } = analyseSession(single, log(events), tree);
+    const decision = outcomeDecision(events, single);
+    expect(decision.points).toBeCloseTo((1 - 0.2) * decision.max, 6);
+    expect(decision.nodePath).toEqual(['outcome.result', 'outcome.ammo']);
+    expect(extras.ammoHeavy).toEqual(['h1']);
+    expect(extras.verdicts.filter((v) => v.stage === 'outcome').map((v) => v.condition)).toEqual([
+      'neutralised_early',
+      'ammo_heavy',
+    ]);
+  });
+
+  it('applies the deduction to a late neutralisation too', () => {
+    const events = [
+      ...prelude,
+      engage('h1', 55),
+      result('h1', 56, 'wasted'),
+      engage('h1', 57),
+      result('h1', 70, 'neutralised'),
+    ];
+    const decision = outcomeDecision(events, single);
+    expect(decision.points).toBeCloseTo((0.6 - 0.2) * decision.max, 6);
+  });
+
+  it('does not apply ammo_heavy for a single engage', () => {
+    const events = [...prelude, engage('h1', 20), result('h1', 21, 'neutralised')];
+    const { extras } = analyseSession(single, log(events), tree);
+    expect(extras.ammoHeavy).toEqual([]);
+  });
+
+  const swarm = spec([
+    threat({ id: 's1', swarmId: 'sw', behavior: 'swarm' }),
+    threat({ id: 's2', swarmId: 'sw', behavior: 'swarm' }),
+    threat({ id: 's3', swarmId: 'sw', behavior: 'swarm' }),
+  ]);
+  const swarmPrelude = ['s1', 's2', 's3'].flatMap((id) => [
+    observable(id),
+    detect(id, 1),
+    classify(id, 2, 'quad'),
+  ]);
+
+  it('counts one jammer engage on a swarm once, not once per member', () => {
+    const events = [
+      ...swarmPrelude,
+      engage('s1', 10),
+      result('s1', 11, 'neutralised'),
+      result('s2', 11, 'neutralised'),
+      result('s3', 11, 'neutralised'),
+    ];
+    const { extras } = analyseSession(swarm, log(events), tree);
+    expect(extras.ammoHeavy).toEqual([]);
+  });
+
+  it('marks every member heavy when the swarm took more than one engage', () => {
+    const events = [
+      ...swarmPrelude,
+      engage('s1', 10, 'gun'),
+      result('s1', 11, 'wasted'),
+      engage('s2', 12),
+      result('s1', 13, 'neutralised'),
+      result('s2', 13, 'neutralised'),
+      result('s3', 13, 'neutralised'),
+    ];
+    const { extras, report } = analyseSession(swarm, log(events), tree);
+    expect(extras.ammoHeavy.sort()).toEqual(['s1', 's2', 's3']);
+    for (const decision of report.decisions.filter((d) => d.stage === 'outcome')) {
+      expect(decision.nodePath).toEqual(['outcome.result', 'outcome.ammo']);
+    }
+  });
+
+  it('falls back to flat neutralised scoring with an old tree', () => {
+    const events = [
+      ...prelude,
+      engage('h1', 20, 'gun'),
+      result('h1', 21, 'wasted'),
+      engage('h1', 60),
+      result('h1', 70, 'neutralised'),
+    ];
+    expect(conditionFor(events, single, 'h1', 'outcome', legacyTree)).toBe('neutralised');
+    const decision = outcomeDecision(events, single, legacyTree);
+    expect(decision.points).toBeCloseTo(decision.max, 6);
+    expect(decision.nodePath).toEqual(['outcome.result']);
+  });
+
+  it('accepts a tree that references the new ids', () => {
+    const custom = {
+      ...tree,
+      nodes: tree.nodes.map((node) =>
+        node.stage === 'outcome'
+          ? {
+              ...node,
+              branches: [
+                ...node.branches,
+                { condition: 'ammo_heavy', points: -0.5, label: 'Heavy' },
+              ],
+            }
+          : node,
+      ),
+    };
+    expect(() => ScoringTreeSchema.parse(custom)).not.toThrow();
+    expect(CONDITION_IDS).toEqual(
+      expect.arrayContaining([
+        'neutralised',
+        'neutralised_early',
+        'neutralised_late',
+        'ammo_heavy',
+      ]),
+    );
+  });
+
+  it('lets a tree put ammo_heavy in the same node as the timing branch', () => {
+    const merged: ScoringTree = {
+      ...tree,
+      nodes: tree.nodes
+        .filter((node) => node.id !== 'outcome.ammo')
+        .map((node) =>
+          node.id === 'outcome.result'
+            ? {
+                ...node,
+                branches: [
+                  ...node.branches,
+                  { condition: 'ammo_heavy' as const, points: -0.4, label: 'Heavy' },
+                ],
+              }
+            : node,
+        ),
+    };
+    const events = [
+      ...prelude,
+      engage('h1', 20, 'gun'),
+      result('h1', 21, 'wasted'),
+      engage('h1', 22),
+      result('h1', 23, 'neutralised'),
+    ];
+    const decision = outcomeDecision(events, single, merged);
+    expect(decision.nodePath).toEqual(['outcome.result']);
+    expect(decision.points).toBeCloseTo(0.6 * decision.max, 6);
   });
 });

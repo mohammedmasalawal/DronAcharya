@@ -51,6 +51,16 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - `World`, `SimInput` and `Observation` live in `src/sim` and are Person A's to reshape. The function names `createWorld`, `step` and `getObservations` are frozen.
 - `nodeLinker: hoisted` in `pnpm-workspace.yaml` and TypeScript 5.9 stay as they are.
 
+### Schema v1.1 (tag `schema-v1.1`, additive only)
+
+- `CONDITION_IDS` gained `neutralised_early`, `neutralised_late` and `ammo_heavy`. Nothing was renamed or removed; `neutralised` stays valid.
+- `neutralised_early`: (neutralisation time minus observable time) is at most 0.5 times the warning window, the same warning window the detection stage uses. `neutralised_late`: neutralised later than that.
+- `ammo_heavy`: the trainee made more than one `engage` event on the threat. For a swarm, engage events are counted once per `swarmId`: the total across all members of that swarm, so every member of a swarm that took more than one engage is heavy, and one engage on a swarm is never heavy.
+- Default tree, outcome stage: node `outcome.result` scores `neutralised_early` 1.0 and `neutralised_late` 0.6 in place of the flat `neutralised` branch; node `outcome.ammo` scores `ammo_heavy` -0.2.
+- `ammo_heavy` is a modifier applied on top of the timing branch within the same outcome decision, only when the threat was neutralised. Both node ids are recorded in `nodePath`. A custom tree that holds `ammo_heavy` in the same node as the timing branch is applied once and the node id is recorded once. A tree without an `ammo_heavy` branch ignores it.
+- A tree that has only the old `neutralised` branch scores neutralisation flat, as before. The scorer tries the timing id, then `neutralised`.
+- `ScoreReport` has no new fields. The store keeps `{report, extras}` per session, where `extras` is `AnalysisExtras` exported from `src/engine`. It now also carries `ammoHeavy` (threat ids).
+
 ## Stub contract
 
 - `src/sim/index.ts`: `createWorld(spec)`, `step(world, inputs, dt)`, `getObservations(world)`
@@ -76,7 +86,7 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 
 ## Scoring engine (src/engine)
 
-- `scoreSession(spec, log, tree)` returns the `ScoreReport`; `analyseSession` returns `{report, extras}`. `extras` carries what the frozen report has no field for: `kendallTau` (display only, never affects points), `excludedThreatIds`, `droppedStages`, `misses`, `wastedEffort`, `engageCounts` and `verdicts` (the tree condition chosen per threat and stage).
+- `scoreSession(spec, log, tree)` returns the `ScoreReport`; `analyseSession` returns `{report, extras}`. `extras` (type `AnalysisExtras`, exported from `src/engine`) carries what the frozen report has no field for: `kendallTau` (display only, never affects points), `excludedThreatIds`, `droppedStages`, `misses`, `wastedEffort`, `ammoHeavy`, `engageCounts` and `verdicts` (the tree condition chosen per threat and stage, with a modifier such as `ammo_heavy` as its own record).
 - The scorer measures facts and picks a condition id from `CONDITION_IDS`; the tree JSON decides every point value. A chosen condition with no branch in the tree scores 0.
 - A threat is scored only if the log has an `observable` event for it. First `detect` wins. Classification used is the last `classify` before the first `engage`, or the last overall when never engaged. Only the first `engage` per threat decides. The last `rank` event is the trainee's order. `sessionId` is `${scenarioId}:${traineeId}`.
 - Warning window is `max(1, etaImpact - observableAt)`, where etaImpact is the leak time if a leak result exists, otherwise `min(spawnAtSec + rangeM / speedMps, durationSec)`. Reaction bands and rank-distance bands are parsed from the ids `reaction<=X` and `rank_within_N`.

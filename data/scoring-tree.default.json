@@ -63,12 +63,21 @@
       "stage": "outcome",
       "question": "What was the physical outcome for the threat?",
       "branches": [
-        { "condition": "neutralised", "points": 1, "label": "Threat neutralised" },
+        { "condition": "neutralised_early", "points": 1, "label": "Threat neutralised early in the warning window" },
+        { "condition": "neutralised_late", "points": 0.6, "label": "Threat neutralised late in the warning window" },
         { "condition": "ignored_nonthreat", "points": 1, "label": "Non-threat left alone" },
         { "condition": "wasted", "points": 0.25, "label": "Effector wasted" },
         { "condition": "ignored_hostile", "points": 0, "label": "Hostile ignored" },
         { "condition": "leak", "points": -0.5, "label": "Hostile leaked through" },
         { "condition": "fratricide", "points": -1, "label": "Fratricide" }
+      ]
+    },
+    {
+      "id": "outcome.ammo",
+      "stage": "outcome",
+      "question": "Was ammunition spent efficiently?",
+      "branches": [
+        { "condition": "ammo_heavy", "points": -0.2, "label": "More than one engage spent on the threat" }
       ]
     }
   ],

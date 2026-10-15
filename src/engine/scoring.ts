@@ -1,4 +1,5 @@
 import type {
+  Branch,
   ConditionId,
   Competencies,
   CriticalEvent,
@@ -8,6 +9,7 @@ import type {
   ScoringTree,
   SessionLog,
   Stage,
+  TreeNode,
 } from '../schema';
 import {
   assessmentVerdict,
@@ -37,23 +39,37 @@ export interface VerdictRecord {
   condition: ConditionId;
 }
 
-export interface SessionExtras {
+export interface AnalysisExtras {
   kendallTau: number | null;
   excludedThreatIds: string[];
   droppedStages: Stage[];
   misses: { threatId: string; stage: Stage }[];
   wastedEffort: string[];
+  ammoHeavy: string[];
   engageCounts: Record<string, number>;
   verdicts: VerdictRecord[];
 }
 
 export interface SessionAnalysis {
   report: ScoreReport;
-  extras: SessionExtras;
+  extras: AnalysisExtras;
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function findBranch(
+  nodes: TreeNode[],
+  candidates: ConditionId[],
+): { node: TreeNode; branch: Branch } | null {
+  for (const condition of candidates) {
+    for (const node of nodes) {
+      const branch = node.branches.find((candidate) => candidate.condition === condition);
+      if (branch) return { node, branch };
+    }
+  }
+  return null;
 }
 
 function optimalOrder(hostile: ThreatFacts[]): string[] {
@@ -130,8 +146,9 @@ export function analyseSession(
 
   const decisions: Decision[] = [];
   const verdicts: VerdictRecord[] = [];
-  const misses: SessionExtras['misses'] = [];
+  const misses: AnalysisExtras['misses'] = [];
   const wastedEffort: string[] = [];
+  const ammoHeavy: string[] = [];
   const stagePoints: Record<Stage, number> = {
     detection: 0,
     classification: 0,
@@ -162,9 +179,9 @@ export function analyseSession(
 
   for (const stage of STAGES) {
     const applicable = stage === 'assessment' ? hostile : scored;
-    const node = tree.nodes.find((candidate) => candidate.stage === stage);
+    const stageNodes = tree.nodes.filter((candidate) => candidate.stage === stage);
 
-    if (!node || applicable.length === 0) {
+    if (stageNodes.length === 0 || applicable.length === 0) {
       droppedStages.push(stage);
       continue;
     }
@@ -175,21 +192,36 @@ export function analyseSession(
 
     for (const facts of applicable) {
       const verdict = verdictFor(stage, facts);
-      const branch = node.branches.find((candidate) => candidate.condition === verdict.condition);
-      const fraction = branch ? clamp(branch.points, -1, 1) : 0;
-      const points = clamp(fraction * max, -max, max);
+      const found = findBranch(stageNodes, [verdict.condition, ...(verdict.fallbacks ?? [])]);
+      const nodePath = [found ? found.node.id : stageNodes[0]!.id];
+      let fraction = found ? clamp(found.branch.points, -1, 1) : 0;
+      let reason = found
+        ? `${found.branch.label}. ${verdict.reason}`
+        : `No branch. ${verdict.reason}`;
+
+      verdicts.push({
+        threatId: facts.threat.id,
+        stage,
+        condition: found ? found.branch.condition : verdict.condition,
+      });
+
+      for (const modifier of verdict.modifiers ?? []) {
+        const applied = findBranch(stageNodes, [modifier.condition]);
+        if (!applied) continue;
+        fraction += clamp(applied.branch.points, -1, 1);
+        if (!nodePath.includes(applied.node.id)) nodePath.push(applied.node.id);
+        reason += ` ${applied.branch.label}: ${modifier.reason}.`;
+        verdicts.push({ threatId: facts.threat.id, stage, condition: modifier.condition });
+        if (modifier.condition === 'ammo_heavy' && !ammoHeavy.includes(facts.threat.id)) {
+          ammoHeavy.push(facts.threat.id);
+        }
+      }
+
+      const points = clamp(clamp(fraction, -1, 1) * max, -max, max);
       const flags: Flag[] = verdict.flags;
 
       sum += points;
-      verdicts.push({ threatId: facts.threat.id, stage, condition: verdict.condition });
-      decisions.push({
-        threatId: facts.threat.id,
-        stage,
-        points,
-        max,
-        nodePath: [node.id],
-        reason: branch ? `${branch.label}. ${verdict.reason}` : `No branch. ${verdict.reason}`,
-      });
+      decisions.push({ threatId: facts.threat.id, stage, points, max, nodePath, reason });
 
       if (flags.includes('miss')) misses.push({ threatId: facts.threat.id, stage });
       if (flags.includes('wasted_effort') && !wastedEffort.includes(facts.threat.id)) {
@@ -250,6 +282,7 @@ export function analyseSession(
       droppedStages,
       misses,
       wastedEffort,
+      ammoHeavy,
       engageCounts: Object.fromEntries(scored.map((f) => [f.threat.id, f.engageCount])),
       verdicts,
     },

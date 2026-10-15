@@ -143,6 +143,9 @@ export const CONDITION_IDS = [
   'ignored_hostile',
   'leak',
   'fratricide',
+  'neutralised_early',
+  'neutralised_late',
+  'ammo_heavy',
 ] as const;
 
 export const ConditionId = z.enum(CONDITION_IDS);
