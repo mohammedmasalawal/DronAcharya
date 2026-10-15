@@ -9,18 +9,22 @@ import {
 } from '../schema';
 import { generateScenario } from './generator';
 import { runBot } from './bots';
-import { scoreSession } from './scoring';
-import { nextDifficulty, updateSkill } from './adaptive';
+import { analyseSession, scoreSession } from './scoring';
+import { createProfile, updateSkill } from './adaptive';
 
 const tree = ScoringTreeSchema.parse(
   JSON.parse(readFileSync('data/scoring-tree.default.json', 'utf8')),
 );
 
-const difficulty = nextDifficulty({
-  traineeId: 'x',
-  sessions: 0,
-  skill: { detect: 0, classify: 0, prioritise: 0, engage: 0, roe: 0, trust: 0 },
-});
+const difficulty = {
+  threatCount: 0.5,
+  speed: 0.5,
+  altitude: 0.5,
+  evasiveness: 0.5,
+  ambiguity: 0.5,
+  degradation: 0.5,
+  timePressure: 0.5,
+};
 
 describe('scoring tree', () => {
   it('has stage weights that sum to 100', () => {
@@ -104,8 +108,8 @@ describe('bots and scoring', () => {
 
   it('counts sessions when updating skill', () => {
     const spec = generateScenario(1, difficulty, []);
-    const report = scoreSession(spec, runBot(spec, 'novice'), tree);
-    const profile = { traineeId: 'x', sessions: 0, skill: report.competencies };
-    expect(updateSkill(profile, report).sessions).toBe(1);
+    const { report, extras } = analyseSession(spec, runBot(spec, 'novice'), tree);
+    const next = updateSkill(createProfile('x'), report, extras, difficulty);
+    expect(next.sessions).toBe(1);
   });
 });

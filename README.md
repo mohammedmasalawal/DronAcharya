@@ -21,6 +21,8 @@ On Windows without symlink permission, `pnpm-workspace.yaml` sets `nodeLinker: h
 | `pnpm typecheck`                                      | Run `tsc --noEmit`                                                                  |
 | `pnpm lint`                                           | Run eslint                                                                          |
 | `pnpm format`                                         | Run prettier                                                                        |
+| `pnpm seed:demo`                                      | Regenerate `data/demo/demo-data.json` (2 units, 8 trainees, 96 sessions)            |
+| `pnpm demo:check`                                     | Validate the demo data against the schema                                           |
 | `pnpm sim:run --seed 1 --bot expert --difficulty 0.5` | Generate, bot-play and score one scenario (`--scripted <name>` runs a scripted one) |
 
 `--bot` is one of `expert`, `novice`, `overtrusting`.

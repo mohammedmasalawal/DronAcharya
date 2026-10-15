@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "sim:run": "tsx scripts/sim-run.ts"
+    "sim:run": "tsx scripts/sim-run.ts",
+    "seed:demo": "tsx src/store/cli/seedDemo.ts",
+    "demo:check": "tsx src/store/cli/demoCheck.ts"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
@@ -33,6 +35,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
+    "fake-indexeddb": "^6.2.5",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",

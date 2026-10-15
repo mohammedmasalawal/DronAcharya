@@ -46,6 +46,7 @@ export interface AnalysisExtras {
   misses: { threatId: string; stage: Stage }[];
   wastedEffort: string[];
   ammoHeavy: string[];
+  trustSamples: number;
   engageCounts: Record<string, number>;
   verdicts: VerdictRecord[];
 }
@@ -283,6 +284,7 @@ export function analyseSession(
       misses,
       wastedEffort,
       ammoHeavy,
+      trustSamples: assistantSamples.length,
       engageCounts: Object.fromEntries(scored.map((f) => [f.threat.id, f.engageCount])),
       verdicts,
     },

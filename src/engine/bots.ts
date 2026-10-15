@@ -13,6 +13,11 @@ import { targetAssetValue, theoreticalEtaSec } from './facts';
 
 export type BotKind = 'expert' | 'novice' | 'overtrusting';
 
+export interface BotOptions {
+  skill: number;
+  trustBias: number;
+}
+
 type Range = [number, number];
 
 interface Profile {
@@ -24,9 +29,10 @@ interface Profile {
   confidence: Range;
   panicEngage: number;
   wrongEffector: number;
-  rankOptimal: boolean;
-  groupSwarms: boolean;
-  knowsEmitters: boolean;
+  rankNoise: number;
+  swarmDiscipline: number;
+  emitterKnowledge: number;
+  trustBias: number;
 }
 
 const PROFILES: Record<BotKind, Profile> = {
@@ -39,9 +45,10 @@ const PROFILES: Record<BotKind, Profile> = {
     confidence: [0.85, 0.95],
     panicEngage: 0,
     wrongEffector: 0,
-    rankOptimal: true,
-    groupSwarms: true,
-    knowsEmitters: true,
+    rankNoise: 0,
+    swarmDiscipline: 1,
+    emitterKnowledge: 1,
+    trustBias: 0,
   },
   novice: {
     salt: 0x2a71,
@@ -52,9 +59,10 @@ const PROFILES: Record<BotKind, Profile> = {
     confidence: [0.4, 0.85],
     panicEngage: 0.2,
     wrongEffector: 0.25,
-    rankOptimal: false,
-    groupSwarms: false,
-    knowsEmitters: false,
+    rankNoise: 1,
+    swarmDiscipline: 0,
+    emitterKnowledge: 0,
+    trustBias: 0,
   },
   overtrusting: {
     salt: 0x3c95,
@@ -65,11 +73,42 @@ const PROFILES: Record<BotKind, Profile> = {
     confidence: [0.75, 0.9],
     panicEngage: 0,
     wrongEffector: 0,
-    rankOptimal: true,
-    groupSwarms: true,
-    knowsEmitters: false,
+    rankNoise: 0,
+    swarmDiscipline: 1,
+    emitterKnowledge: 0,
+    trustBias: 0,
   },
 };
+
+function lerp(from: number, to: number, amount: number): number {
+  return from + (to - from) * amount;
+}
+
+function clampUnit(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function skilledProfile(kind: BotKind, options: BotOptions): Profile {
+  const skill = clampUnit(options.skill);
+  const trustBias = clampUnit(options.trustBias);
+  const mix =
+    Math.imul(Math.round(skill * 1000), 0x9e37) ^ Math.imul(Math.round(trustBias * 1000), 0x85eb);
+
+  return {
+    salt: (PROFILES[kind].salt ^ mix) >>> 0,
+    detectDelay: [lerp(5, 1, skill), lerp(12, 2, skill)],
+    classifyDelay: [lerp(2, 0.5, skill), lerp(4, 1, skill)],
+    engageDelay: [lerp(1, 0, skill), lerp(4, 0.4, skill)],
+    accuracy: lerp(0.6, 1, skill),
+    confidence: [lerp(0.4, 0.85, skill), lerp(0.85, 0.95, skill)],
+    panicEngage: lerp(0.2, 0, skill),
+    wrongEffector: lerp(0.25, 0, skill),
+    rankNoise: 1 - skill,
+    swarmDiscipline: skill,
+    emitterKnowledge: skill,
+    trustBias,
+  };
+}
 
 const ALL_CLASSES: ThreatClass[] = [
   'quad',
@@ -109,6 +148,11 @@ interface Plan {
   rankKey: number;
 }
 
+interface ExtraPlan {
+  followRoll: number;
+  emitterRoll: number;
+}
+
 interface Memory {
   visibleSince: number | null;
   detectSent: boolean;
@@ -146,9 +190,13 @@ function makePlan(rng: Rng, profile: Profile): Plan {
 function chooseClass(
   profile: Profile,
   plan: Plan,
+  extra: ExtraPlan,
   threat: Threat,
   observation: Observation,
 ): ThreatClass {
+  if (extra.followRoll < profile.trustBias && observation.assistantSuggestion !== null) {
+    return observation.assistantSuggestion;
+  }
   if (profile.accuracy === 'truth') return threat.cls;
   if (profile.accuracy === 'assistant') return observation.assistantSuggestion ?? threat.cls;
   if (plan.accuracyRoll < profile.accuracy) return threat.cls;
@@ -192,11 +240,38 @@ function priorityOrder(spec: ScenarioSpec, ids: string[]): string[] {
     .map((entry) => entry.id);
 }
 
-export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
-  const profile = PROFILES[kind];
+function noisyOrder(
+  spec: ScenarioSpec,
+  ids: string[],
+  plans: Map<string, Plan>,
+  noise: number,
+): string[] {
+  const ordered = priorityOrder(spec, ids);
+  if (noise <= 0) return ordered;
+  const keyed = ordered.map((id, index) => ({
+    id,
+    key: (1 - noise) * (index / ordered.length) + noise * (plans.get(id)?.rankKey ?? 0),
+  }));
+  return keyed.sort((a, b) => a.key - b.key).map((entry) => entry.id);
+}
+
+export function runBot(spec: ScenarioSpec, kind: BotKind, options?: BotOptions): SessionLog {
+  const profile = options ? skilledProfile(kind, options) : PROFILES[kind];
   const rng = mulberry32(seedFor(spec, profile));
   const threats = new Map(spec.threats.map((threat) => [threat.id, threat]));
   const plans = new Map(spec.threats.map((threat) => [threat.id, makePlan(rng, profile)]));
+  const extraRng = mulberry32((seedFor(spec, profile) ^ 0x9e3779b9) >>> 0);
+  const extras = new Map<string, ExtraPlan>(
+    spec.threats.map((threat) => [threat.id, { followRoll: extraRng(), emitterRoll: extraRng() }]),
+  );
+  const swarmRolls = new Map<string, number>();
+  for (const threat of spec.threats) {
+    if (threat.swarmId !== undefined && !swarmRolls.has(threat.swarmId)) {
+      swarmRolls.set(threat.swarmId, extraRng());
+    }
+  }
+  const disciplined = (threat: Threat): boolean =>
+    threat.swarmId !== undefined && (swarmRolls.get(threat.swarmId) ?? 1) < profile.swarmDiscipline;
   const memory = new Map<string, Memory>(
     spec.threats.map((threat) => [
       threat.id,
@@ -216,7 +291,7 @@ export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
   const world = createWorld(spec);
 
   const swarmPending = (threat: Threat, t: number): boolean => {
-    if (!profile.groupSwarms || threat.swarmId === undefined) return false;
+    if (!disciplined(threat)) return false;
     return spec.threats.some((mate) => {
       if (mate.id === threat.id || mate.swarmId !== threat.swarmId) return false;
       const last = memory.get(mate.id)?.lastEngageAt;
@@ -225,7 +300,7 @@ export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
   };
 
   const swarmAssessed = (threat: Threat, t: number): boolean => {
-    if (!profile.groupSwarms || threat.swarmId === undefined) return true;
+    if (!disciplined(threat)) return true;
     const mates = spec.threats.filter((mate) => mate.swarmId === threat.swarmId);
     const classified = mates.filter((mate) => memory.get(mate.id)?.call !== null);
     if (classified.length === mates.length) return true;
@@ -249,8 +324,9 @@ export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
     for (const observation of observations) {
       const threat = threats.get(observation.threatId);
       const plan = plans.get(observation.threatId);
+      const extra = extras.get(observation.threatId);
       const state = memory.get(observation.threatId);
-      if (!threat || !plan || !state) continue;
+      if (!threat || !plan || !extra || !state) continue;
 
       if (state.visibleSince === null) state.visibleSince = t;
 
@@ -266,7 +342,7 @@ export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
 
       if (state.call === null) {
         if (t - state.detectedAt < plan.classifyDelay) continue;
-        const cls = chooseClass(profile, plan, threat, observation);
+        const cls = chooseClass(profile, plan, extra, threat, observation);
         inputs.push({ type: 'classify', threatId: threat.id, cls, confidence: plan.confidence });
         state.call = cls;
         state.classifiedAt = t;
@@ -286,9 +362,10 @@ export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
       if (swarmPending(threat, t)) continue;
       if (!swarmAssessed(threat, t)) continue;
 
-      const emitter = profile.knowsEmitters
-        ? threat.rfEmitting
-        : observation.sensors.includes('rf');
+      const emitter =
+        extra.emitterRoll < profile.emitterKnowledge
+          ? threat.rfEmitting
+          : observation.sensors.includes('rf');
       const believed = state.call;
       let effector: EffectorType | null;
 
@@ -308,9 +385,7 @@ export function runBot(spec: ScenarioSpec, kind: BotKind): SessionLog {
 
     if (rankDirty) {
       const ids = [...believedHostile];
-      const order = profile.rankOptimal
-        ? priorityOrder(spec, ids)
-        : ids.sort((a, b) => (plans.get(a)?.rankKey ?? 0) - (plans.get(b)?.rankKey ?? 0));
+      const order = noisyOrder(spec, ids, plans, profile.rankNoise);
       inputs.push({ type: 'rank', order });
     }
 

@@ -172,3 +172,89 @@ describe('novice and overtrusting', () => {
     expect(wasted).toBeGreaterThan(0);
   }, 120_000);
 });
+
+describe('skill-parameterised bot', () => {
+  const at = (level: number) => seeds(20).map((seed) => generateScenario(seed, uniform(level), []));
+  const specsHalf = at(0.5);
+  const totalFor = (specs: ScenarioSpec[], skill: number, trustBias = 0) =>
+    mean(
+      specs.map(
+        (spec) =>
+          analyseSession(spec, runBot(spec, 'expert', { skill, trustBias }), DEFAULT_TREE).report
+            .total,
+      ),
+    );
+
+  it('has a mean total that is non-decreasing in skill at difficulty 0.5', () => {
+    const totals = [0, 0.25, 0.5, 0.75, 1].map((skill) => totalFor(specsHalf, skill));
+    for (let i = 1; i < totals.length; i++) {
+      expect(totals[i]!).toBeGreaterThanOrEqual(totals[i - 1]!);
+    }
+    expect(totals[4]! - totals[0]!).toBeGreaterThan(25);
+  }, 120_000);
+
+  it('falls as difficulty rises at skill 0.5', () => {
+    const totals = [0.2, 0.5, 0.8].map((level) => totalFor(at(level), 0.5));
+    expect(totals[0]!).toBeGreaterThan(totals[1]!);
+    expect(totals[1]!).toBeGreaterThan(totals[2]!);
+  }, 120_000);
+
+  it('is deterministic and replayable', () => {
+    for (const spec of specsHalf.slice(0, 6)) {
+      const options = { skill: 0.4, trustBias: 0.35 };
+      const a = runBot(spec, 'expert', options);
+      expect(runBot(spec, 'expert', options)).toEqual(a);
+      expect(replayEvents(spec, a)).toEqual(a.events);
+    }
+  });
+
+  it('changes behaviour with skill and with trust bias', () => {
+    const spec = specsHalf[0]!;
+    const base = runBot(spec, 'expert', { skill: 0.5, trustBias: 0 }).events;
+    expect(runBot(spec, 'expert', { skill: 0.9, trustBias: 0 }).events).not.toEqual(base);
+    expect(runBot(spec, 'expert', { skill: 0.5, trustBias: 0.8 }).events).not.toEqual(base);
+  });
+
+  it('follows the assistant regardless of skill when the trust bias is 1', () => {
+    let followedWrong = 0;
+    for (const spec of at(0.8)) {
+      const classifies = runBot(spec, 'expert', { skill: 1, trustBias: 1 }).events.filter(
+        (e): e is Extract<SessionEvent, { type: 'classify' }> => e.type === 'classify',
+      );
+      expect(classifies.every((e) => e.followedAssistant)).toBe(true);
+      followedWrong += classifies.filter((e) => !e.assistantCorrect).length;
+    }
+    expect(followedWrong).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('never follows a wrong assistant at skill 1 and trust bias 0', () => {
+    for (const spec of at(0.8).slice(0, 10)) {
+      const classifies = runBot(spec, 'expert', { skill: 1, trustBias: 0 }).events.filter(
+        (e): e is Extract<SessionEvent, { type: 'classify' }> => e.type === 'classify',
+      );
+      expect(classifies.some((e) => e.followedAssistant && !e.assistantCorrect)).toBe(false);
+    }
+  });
+
+  it('lowers trust as the trust bias rises', () => {
+    const trust = (bias: number) =>
+      mean(
+        specsHalf.map(
+          (spec) =>
+            analyseSession(
+              spec,
+              runBot(spec, 'expert', { skill: 0.7, trustBias: bias }),
+              DEFAULT_TREE,
+            ).report.competencies.trust,
+        ),
+      );
+    expect(trust(1)).toBeLessThan(trust(0));
+  }, 120_000);
+
+  it('leaves the three named kinds on their original behaviour', () => {
+    const spec = specsHalf[1]!;
+    for (const kind of KINDS) {
+      expect(runBot(spec, kind)).toEqual(runBot(spec, kind, undefined));
+    }
+  });
+});

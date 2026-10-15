@@ -66,8 +66,8 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - `src/sim/index.ts`: `createWorld(spec)`, `step(world, inputs, dt)`, `getObservations(world)`
 - `src/engine/generator.ts`: `generateScenario(seed, difficulty, history): ScenarioSpec`
 - `src/engine/scoring.ts`: `scoreSession(spec, log, tree): ScoreReport`
-- `src/engine/adaptive.ts`: `updateSkill(profile, report)`, `nextDifficulty(profile)`
-- `src/engine/bots.ts`: `runBot(spec, kind: expert|novice|overtrusting): SessionLog`
+- `src/engine/adaptive.ts`: `createProfile(traineeId)`, `updateSkill(profile, report, extras, servedDifficulty)`, `nextDifficulty(profile, seed)`, `examConfig(seed, difficulty)` (not frozen; see the adaptive section)
+- `src/engine/bots.ts`: `runBot(spec, kind: expert|novice|overtrusting, options?: {skill, trustBias}): SessionLog`
 - `src/shared/prng.ts`: `mulberry32(seed)`
 
 ## Sim and client (feat/sim)
@@ -112,6 +112,40 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - Expert: detects 1 to 2 s after a contact appears, classifies correctly (confidence 0.85 to 0.95), ranks hostiles by theoretical ETA then asset value, engages with the fastest effective effector in range, holds fire on non-threats, and assesses a whole swarm before a single jam. Novice: detects after 5 to 12 s, correct about 60% of the time at low confidence, engages believed threats without regard to the ROE, sometimes engages anything or picks a random effector, ranks at random. Overtrusting: classifies as the assistant suggests, otherwise behaves like the expert.
 - Ten scripted scenarios live in `data/scenarios/*.json` and load through `loadScripted(name)` in `src/engine/scripted.ts`. Each validates against the schema, is solvable, and the expert scores at least 70.
 - CLI: `pnpm sim:run --seed 1 --bot expert --difficulty 0.5` generates and runs one scenario; `--scripted <name>` runs a scripted one instead.
+
+## Store, adaptive engine, training and demo data
+
+### Import surface for Person A
+
+`import { saveSession, resolveExam, ... } from '../store'` (everything below is exported from `src/store/index.ts`). The store is a Dexie database named `dronacharya-store`; it supersedes the interim `src/client/storage.ts`.
+
+- `saveSession({spec, log, endedAtSec, traineeId, unitId}): Promise<string>` runs `analyseSession` with the default tree, stores `{report, extras}`, updates the skill profile with `updateSkill`, creates the unit and trainee rows if missing, and returns the session id `${scenarioId}:${traineeId}:${n}`, where `n` is 1 plus that trainee's earlier sessions on that scenario. `report.sessionId` is that id.
+- `getSession(id)`, `listSessions(traineeId)` (oldest first), `listUnitReports(unitId)` (`{sessionId, traineeId, scenarioId, createdAt, report, extras}` oldest first).
+- `getProfile(traineeId)`, `saveProfile(profile)`.
+- `createExam({id, unitId, seed, difficulty})`, `listExams(unitId)`.
+- `resolveExam(examId): Promise<ScenarioSpec>` looks `examId` up in the `exams` table and uses its seed and difficulty; for an unknown id it uses `generateScenario(seed, 0.5 on every axis, [])`, where an all-digit id of up to 9 digits is the seed itself and any other string is hashed with the same FNV-1a function the client uses (`seedForExam`). History is always empty so every trainee gets the identical scenario.
+- `listUnits()`, `listTrainees(unitId)`, `saveUnit`, `saveTrainee`.
+- `runTrainingLoop(traineeId, unitId, {sessions, skill, trustBias, seed, learningRate?, exam?})` runs `simulateTraining` from the stored profile and persists every session through `saveSession`.
+- `importDemoData(json)` validates against `DemoDataSchema` and adds only rows whose ids do not exist (idempotent); it returns the number added per table. `resetDemoData()` deletes every row whose id, or trainee id for sessions and profiles, starts with `demo-`.
+- Tables: `trainees`, `units`, `exams`, `sessions` (`{id, traineeId, unitId, scenarioId, spec, log, endedAtSec, report, extras, createdAt}`), `skillProfiles`. `Date.now` is used only for `createdAt`.
+
+### Adaptive engine (`src/engine/adaptive.ts`, pure and deterministic)
+
+- Profile: ratings for `detect`, `classify`, `prioritise`, `engage`, `roe`, `trust`, all starting at 1000, plus `sessions` and a `history` of `{difficulty, competencies, ratings}` per session.
+- Knob level per competency: detect is the mean of `speed`, `timePressure`, `altitude`, `degradation`; classify the mean of `ambiguity`, `degradation`; prioritise the mean of `threatCount`, `timePressure`; engage the mean of `threatCount`, `evasiveness`, `timePressure`; roe is `ambiguity`; trust is `(0.5 * ambiguity + 0.2 * degradation) / 0.7`. The trust mapping follows `src/sim`, where the assistant's error rate is `1 - clamp(0.95 - 0.5 * ambiguity - 0.2 * degradation, 0.3, 0.99)`, so it depends on degradation as well as ambiguity.
+- `updateSkill`: `score = competency / 100`, `reference = 600 + 800 * level`, `expected = 1 / (1 + 10^((reference - rating) / 400))`, `rating += K * (score - expected)` with `K = 40` for the first 5 sessions then 24. A competency is skipped when its stage is in `extras.droppedStages` (detect is detection, classify is classification, prioritise is assessment, engage is engagement, roe is skipped with engagement); trust is skipped when `extras.trustSamples` is 0. `AnalysisExtras.trustSamples` counts the classify events. It returns a new profile.
+- `nextDifficulty(profile, seed)`: target level per competency is `clamp((rating - 147 - 600) / 800, 0.05, 0.95)` (about 70% expected success). A knob takes the mean target of the competencies that own it. The weakest competency by rating adds +0.1 to the knobs it owns. With probability 0.1 per scenario every knob is jittered by a seeded uniform value in [-0.1, 0.1]. Everything is clamped to [0, 1]. The result has the seven schema fields only; there is no `axes` field.
+- `examConfig(seed, difficulty)` returns a fixed `{seed, difficulty}` copy so a whole unit takes an identical test.
+
+### Skill-parameterised bot and training
+
+- `runBot(spec, kind, {skill, trustBias})` interpolates every behaviour between the novice (skill 0) and the expert (skill 1): reaction and decision delays, classification accuracy (0.6 to 1), confidence, the chance of engaging a believed non-threat (0.2 to 0), the chance of choosing a random effector (0.25 to 0), rank noise, the chance of using the true RF-emitter flag, and the chance of assessing a swarm before jamming. `trustBias` is the probability of following the assistant regardless of own judgement; `followedAssistant` is then set by the sim. Without the third argument the three named kinds behave exactly as before. Extra random draws use a second seeded stream so the original draws are unchanged.
+- `simulateTraining({traineeId, sessions, skill, trustBias, learningRate = 0.025, seed, profile?, history?, exam?})` needs no database. Each session generates a scenario from `nextDifficulty` and the recent specs, runs the skilled bot, scores it, updates the profile, then raises the bot's skill by `learningRate` and lowers `trustBias` by 0.03, both clamped to [0, 1]. `exam: {sessionIndex, seed, difficulty}` replaces that session with `generateScenario(seed, difficulty, [])`.
+
+### Demo data
+
+- `pnpm seed:demo` writes `data/demo/demo-data.json`: units Alpha and Bravo, four trainees each with skills 0.15 to 0.7 and varied trust bias, 12 sessions each, one shared exam per unit taken at session 12 on the unit's common seed, and every skill profile. It is deterministic and about 1.7 MB. `pnpm demo:check` validates it against `DemoDataSchema` and checks ids, counts and size.
+- Load it in the app with `importDemoData(await (await fetch('/demo-data.json')).json())` or import the JSON directly; `buildDemoData()` rebuilds it in memory.
 
 ## Commands
 

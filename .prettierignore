@@ -2,3 +2,4 @@ node_modules
 dist
 pnpm-lock.yaml
 data/scoring-tree.default.json
+data/demo/demo-data.json
