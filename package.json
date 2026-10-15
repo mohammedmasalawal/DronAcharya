@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "sim:run": "tsx scripts/sim-run.ts",
     "seed:demo": "tsx src/store/cli/seedDemo.ts",
-    "demo:check": "tsx src/store/cli/demoCheck.ts"
+    "demo:check": "tsx src/store/cli/demoCheck.ts",
+    "curriculum:check": "tsx src/store/cli/curriculumCheck.ts"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

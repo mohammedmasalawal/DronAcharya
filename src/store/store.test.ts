@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { readFileSync } from 'node:fs';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { specForExam } from '../client/exam';
 import { generateScenario } from '../engine/generator';
@@ -204,6 +205,27 @@ describe('demo data', () => {
     }
   }, 60_000);
 
+  it('shows clear improvement across sessions 10 to 12 versus 1 to 3', () => {
+    const mean = (values: number[]) => values.reduce((sum, v) => sum + v, 0) / values.length;
+    const gains = demo.trainees.map((trainee) => {
+      const rows = demo.sessions
+        .filter((s) => s.traineeId === trainee.id)
+        .sort((a, b) => a.createdAt - b.createdAt);
+      expect(rows).toHaveLength(12);
+      return (
+        mean(rows.slice(9, 12).map((s) => s.report.total)) -
+        mean(rows.slice(0, 3).map((s) => s.report.total))
+      );
+    });
+    expect(gains.filter((gain) => gain > 0).length).toBeGreaterThanOrEqual(6);
+    expect(mean(gains)).toBeGreaterThanOrEqual(8);
+  });
+
+  it('matches the committed demo file', () => {
+    const committed = JSON.parse(readFileSync('data/demo/demo-data.json', 'utf8'));
+    expect(JSON.parse(JSON.stringify(demo))).toEqual(committed);
+  });
+
   it('imports idempotently, skipping existing ids', async () => {
     const first = await importDemoData(demo);
     expect(first).toEqual({ units: 2, trainees: 8, exams: 2, sessions: 96, skillProfiles: 8 });
@@ -232,9 +254,8 @@ describe('demo data', () => {
     expect(await listSessions(trainee.id)).toHaveLength(12);
     expect((await getProfile(trainee.id))!.sessions).toBe(12);
     expect(await listExams(unit.id)).toHaveLength(1);
-    expect(await resolveExam(`${unit.id}-exam`)).toEqual(
-      generateScenario(demo.exams.find((e) => e.unitId === unit.id)!.seed, uniform(0.5), []),
-    );
+    const exam = demo.exams.find((e) => e.unitId === unit.id)!;
+    expect(await resolveExam(exam.id)).toEqual(generateScenario(exam.seed, exam.difficulty, []));
   }, 60_000);
 
   it('resets only demo data', async () => {

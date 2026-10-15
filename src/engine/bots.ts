@@ -96,14 +96,14 @@ function skilledProfile(kind: BotKind, options: BotOptions): Profile {
 
   return {
     salt: (PROFILES[kind].salt ^ mix) >>> 0,
-    detectDelay: [lerp(5, 1, skill), lerp(12, 2, skill)],
+    detectDelay: [lerp(12, 1, skill), lerp(30, 2, skill)],
     classifyDelay: [lerp(2, 0.5, skill), lerp(4, 1, skill)],
     engageDelay: [lerp(1, 0, skill), lerp(4, 0.4, skill)],
     accuracy: lerp(0.6, 1, skill),
     confidence: [lerp(0.4, 0.85, skill), lerp(0.85, 0.95, skill)],
     panicEngage: lerp(0.2, 0, skill),
     wrongEffector: lerp(0.25, 0, skill),
-    rankNoise: 1 - skill,
+    rankNoise: (1 - skill) ** 2,
     swarmDiscipline: skill,
     emitterKnowledge: skill,
     trustBias,

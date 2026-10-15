@@ -40,14 +40,16 @@ export const KNOB_KEYS: KnobKey[] = [
 
 export const INITIAL_RATING = 1000;
 
-const REFERENCE_BASE = 600;
-const REFERENCE_SPAN = 800;
+const REFERENCE_BASE = 700;
+const REFERENCE_SPAN = 600;
 const TARGET_SUCCESS_OFFSET = 147;
 const MIN_TARGET = 0.05;
 const MAX_TARGET = 0.95;
-const K_EARLY = 40;
-const K_LATE = 24;
-const EARLY_SESSIONS = 5;
+const K_EARLY = 100;
+const K_MIDDLE = 60;
+const K_LATE = 40;
+const EARLY_SESSIONS = 3;
+const MIDDLE_SESSIONS = 8;
 const WEAKEST_BOOST = 0.1;
 const EXPLORE_PROBABILITY = 0.1;
 const EXPLORE_SPAN = 0.1;
@@ -94,6 +96,12 @@ export function levelFor(key: CompetencyKey, difficulty: Difficulty): number {
   return mean(OWNED_KNOBS[key].map((knob) => difficulty[knob]));
 }
 
+export function kFactor(completedSessions: number): number {
+  if (completedSessions < EARLY_SESSIONS) return K_EARLY;
+  if (completedSessions < MIDDLE_SESSIONS) return K_MIDDLE;
+  return K_LATE;
+}
+
 export function expectedSuccess(rating: number, level: number): number {
   const reference = REFERENCE_BASE + REFERENCE_SPAN * level;
   return 1 / (1 + 10 ** ((reference - rating) / 400));
@@ -121,7 +129,7 @@ export function updateSkill(
   extras: AnalysisExtras,
   servedDifficulty: Difficulty,
 ): SkillProfile {
-  const k = profile.sessions < EARLY_SESSIONS ? K_EARLY : K_LATE;
+  const k = kFactor(profile.sessions);
   const ratings: Ratings = { ...profile.ratings };
 
   for (const key of COMPETENCY_KEYS) {

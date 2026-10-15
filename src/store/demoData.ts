@@ -16,6 +16,7 @@ import type { SkillProfile } from '../engine/adaptive';
 
 export const DEMO_PREFIX = 'demo-';
 export const DEMO_SESSIONS_PER_TRAINEE = 12;
+export const DEMO_LEARNING_RATE = 0.05;
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -51,10 +52,10 @@ const UNIT_PLANS: UnitPlan[] = [
     name: 'Alpha',
     examSeed: 7101,
     trainees: [
-      { callsign: 'Falcon', skill: 0.15, trustBias: 0.7 },
-      { callsign: 'Kestrel', skill: 0.3, trustBias: 0.5 },
-      { callsign: 'Harrier', skill: 0.45, trustBias: 0.3 },
-      { callsign: 'Osprey', skill: 0.6, trustBias: 0.15 },
+      { callsign: 'Falcon', skill: 0.1, trustBias: 0.7 },
+      { callsign: 'Kestrel', skill: 0.2, trustBias: 0.5 },
+      { callsign: 'Harrier', skill: 0.35, trustBias: 0.3 },
+      { callsign: 'Osprey', skill: 0.5, trustBias: 0.15 },
     ],
   },
   {
@@ -62,22 +63,24 @@ const UNIT_PLANS: UnitPlan[] = [
     name: 'Bravo',
     examSeed: 7202,
     trainees: [
-      { callsign: 'Condor', skill: 0.2, trustBias: 0.6 },
-      { callsign: 'Merlin', skill: 0.35, trustBias: 0.4 },
-      { callsign: 'Sparrow', skill: 0.55, trustBias: 0.25 },
-      { callsign: 'Eagle', skill: 0.7, trustBias: 0.1 },
+      { callsign: 'Condor', skill: 0.15, trustBias: 0.6 },
+      { callsign: 'Merlin', skill: 0.25, trustBias: 0.4 },
+      { callsign: 'Sparrow', skill: 0.45, trustBias: 0.25 },
+      { callsign: 'Eagle', skill: 0.6, trustBias: 0.1 },
     ],
   },
 ];
 
+const EXAM_LEVEL = 0.4;
+
 const EXAM_DIFFICULTY = {
-  threatCount: 0.5,
-  speed: 0.5,
-  altitude: 0.5,
-  evasiveness: 0.5,
-  ambiguity: 0.5,
-  degradation: 0.5,
-  timePressure: 0.5,
+  threatCount: EXAM_LEVEL,
+  speed: EXAM_LEVEL,
+  altitude: EXAM_LEVEL,
+  evasiveness: EXAM_LEVEL,
+  ambiguity: EXAM_LEVEL,
+  degradation: EXAM_LEVEL,
+  timePressure: EXAM_LEVEL,
 };
 
 export function buildDemoData(): DemoData {
@@ -113,6 +116,7 @@ export function buildDemoData(): DemoData {
         sessions: DEMO_SESSIONS_PER_TRAINEE,
         skill: plan.skill,
         trustBias: plan.trustBias,
+        learningRate: DEMO_LEARNING_RATE,
         seed: 1000 + unitIndex * 100 + traineeIndex * 17,
         exam: {
           sessionIndex: DEMO_SESSIONS_PER_TRAINEE - 1,

@@ -7,6 +7,7 @@ import {
   KNOB_KEYS,
   createProfile,
   examConfig,
+  kFactor,
   expectedSuccess,
   levelFor,
   nextDifficulty,
@@ -92,14 +93,29 @@ describe('updateSkill', () => {
     }
   });
 
-  it('applies the Elo formula with K 40 for the first five sessions and 24 after', () => {
+  it('applies the Elo formula with K 100, then 60 for sessions 4 to 8, then 40', () => {
     const level = 0.5;
     const expected = expectedSuccess(1000, level);
-    const early = updateSkill(createProfile('t'), reportWith(80), extrasWith(), uniform(level));
-    expect(early.ratings.detect).toBeCloseTo(1000 + 40 * (0.8 - expected), 6);
+    const at = (completed: number) =>
+      updateSkill(profileWith({}, completed), reportWith(80), extrasWith(), uniform(level)).ratings
+        .detect;
 
-    const late = updateSkill(profileWith({}, 5), reportWith(80), extrasWith(), uniform(level));
-    expect(late.ratings.detect).toBeCloseTo(1000 + 24 * (0.8 - expected), 6);
+    for (const completed of [0, 1, 2])
+      expect(at(completed)).toBeCloseTo(1000 + 100 * (0.8 - expected), 6);
+    for (const completed of [3, 4, 5, 6, 7])
+      expect(at(completed)).toBeCloseTo(1000 + 60 * (0.8 - expected), 6);
+    for (const completed of [8, 9, 20])
+      expect(at(completed)).toBeCloseTo(1000 + 40 * (0.8 - expected), 6);
+    expect([kFactor(2), kFactor(3), kFactor(7), kFactor(8)]).toEqual([100, 60, 60, 40]);
+  });
+
+  it('uses the widened reference scale 700 + 600 x level', () => {
+    expect(expectedSuccess(1000, 0.5)).toBeCloseTo(0.5, 9);
+    expect(expectedSuccess(1000, 0)).toBeCloseTo(1 / (1 + 10 ** (-300 / 400)), 9);
+    expect(expectedSuccess(1000, 1)).toBeCloseTo(1 / (1 + 10 ** (300 / 400)), 9);
+    expect(targetLevel(1000)).toBeCloseTo((1000 - 147 - 700) / 600, 9);
+    expect(targetLevel(0)).toBe(0.05);
+    expect(targetLevel(5000)).toBe(0.95);
   });
 
   it('rates harder scenarios more generously', () => {
@@ -175,7 +191,7 @@ describe('updateSkill', () => {
 
 describe('nextDifficulty', () => {
   it('targets about 70% expected success', () => {
-    for (const rating of [850, 1000, 1200, 1400]) {
+    for (const rating of [900, 1000, 1200, 1400]) {
       const level = targetLevel(rating);
       expect(expectedSuccess(rating, level)).toBeCloseTo(0.7, 2);
     }

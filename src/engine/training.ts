@@ -5,7 +5,7 @@ import { DEFAULT_TREE } from './defaultTree';
 import { deriveSeed, generateScenario } from './generator';
 import { analyseSession, type AnalysisExtras } from './scoring';
 
-export const DEFAULT_LEARNING_RATE = 0.025;
+export const DEFAULT_LEARNING_RATE = 0.04;
 export const TRUST_BIAS_DECAY = 0.03;
 
 const HISTORY_FOR_NOVELTY = 8;
