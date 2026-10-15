@@ -95,7 +95,7 @@ export const SessionEventSchema = z.discriminatedUnion('type', [
     threatId: z.string(),
     cls: ThreatClass,
     confidence: unit,
-    assistantSuggested: z.boolean(),
+    followedAssistant: z.boolean(),
     assistantCorrect: z.boolean(),
   }),
   z.object({ type: z.literal('rank'), ...at, order: z.array(z.string()) }),
@@ -114,8 +114,41 @@ export const SessionLogSchema = z.object({
   events: z.array(SessionEventSchema),
 });
 
+export const CONDITION_IDS = [
+  'reaction<=0.25',
+  'reaction<=0.6',
+  'reaction>0.6',
+  'never_detected',
+  'exact',
+  'same_family',
+  'wrong_family',
+  'nonthreat_called_threat',
+  'threat_called_nonthreat',
+  'not_classified',
+  'rank_exact',
+  'rank_within_1',
+  'rank_within_2',
+  'rank_far_or_missing',
+  'hostile_roe_met_correct_effector',
+  'hostile_roe_met_wrong_effector',
+  'engaged_before_confirmation',
+  'held_fire_on_hostile',
+  'engaged_bird',
+  'engaged_civilian',
+  'engaged_friendly',
+  'held_fire_on_nonthreat',
+  'neutralised',
+  'ignored_nonthreat',
+  'wasted',
+  'ignored_hostile',
+  'leak',
+  'fratricide',
+] as const;
+
+export const ConditionId = z.enum(CONDITION_IDS);
+
 export const BranchSchema = z.object({
-  condition: z.string(),
+  condition: ConditionId,
   points: z.number(),
   label: z.string(),
 });
@@ -129,7 +162,7 @@ export const TreeNodeSchema = z.object({
 
 export const CriticalFailSchema = z.object({
   id: z.string(),
-  condition: z.string(),
+  condition: ConditionId,
   label: z.string(),
   scoreCap: z.number().min(0).max(100).optional(),
 });
@@ -185,6 +218,7 @@ export const ScoreReportSchema = z.object({
   critical: z.array(CriticalEventSchema),
 });
 
+export type ConditionId = z.infer<typeof ConditionId>;
 export type MapType = z.infer<typeof MapType>;
 export type TimeOfDay = z.infer<typeof TimeOfDay>;
 export type Weather = z.infer<typeof Weather>;

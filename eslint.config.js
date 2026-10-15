@@ -13,7 +13,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/sim/**', 'src/engine/**'],
+    files: ['src/sim/**', 'src/engine/**', 'src/shared/**'],
     rules: {
       'no-restricted-properties': [
         'error',

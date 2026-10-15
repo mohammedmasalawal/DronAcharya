@@ -1,5 +1,5 @@
 import type { Difficulty, ScenarioSpec, Threat } from '../schema';
-import { mulberry32 } from '../sim/prng';
+import { mulberry32 } from '../shared/prng';
 
 export function generateScenario(
   seed: number,

@@ -1,5 +1,5 @@
 import type { ScenarioSpec, SessionEvent, EffectorType, ThreatClass } from '../schema';
-import { mulberry32, type Rng } from './prng';
+import { mulberry32, type Rng } from '../shared/prng';
 
 export const TIMESTEP_SEC = 0.05;
 

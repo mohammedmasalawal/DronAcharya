@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateScenario } from '../engine/generator';
-import { mulberry32 } from './prng';
+import { mulberry32 } from '../shared/prng';
 import { createWorld, getObservations, step, TIMESTEP_SEC } from './index';
 
 const difficulty = {

@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ScenarioSpecSchema, ScoreReportSchema, ScoringTreeSchema } from '../schema';
+import {
+  CONDITION_IDS,
+  ScenarioSpecSchema,
+  ScoreReportSchema,
+  ScoringTreeSchema,
+  SessionEventSchema,
+} from '../schema';
 import { generateScenario } from './generator';
 import { runBot } from './bots';
 import { scoreSession } from './scoring';
@@ -27,6 +33,50 @@ describe('scoring tree', () => {
     for (const stage of Object.keys(tree.weights)) {
       expect(stages.has(stage as keyof typeof tree.weights)).toBe(true);
     }
+  });
+});
+
+describe('condition ids', () => {
+  it('are used by every branch and critical fail in the default tree', () => {
+    const ids = new Set<string>(CONDITION_IDS);
+    for (const node of tree.nodes) {
+      for (const branch of node.branches) {
+        expect(ids.has(branch.condition)).toBe(true);
+      }
+    }
+    for (const fail of tree.criticalFails) {
+      expect(ids.has(fail.condition)).toBe(true);
+    }
+  });
+
+  it('are the only conditions the schema accepts', () => {
+    const bad = {
+      ...tree,
+      nodes: tree.nodes.map((node, i) =>
+        i === 0 ? { ...node, branches: [{ condition: 'made_up', points: 1, label: 'x' }] } : node,
+      ),
+    };
+    expect(() => ScoringTreeSchema.parse(bad)).toThrow();
+  });
+
+  it('are unique', () => {
+    expect(new Set(CONDITION_IDS).size).toBe(CONDITION_IDS.length);
+  });
+});
+
+describe('classify event', () => {
+  it('carries followedAssistant and assistantCorrect', () => {
+    const event = {
+      type: 'classify',
+      t: 12,
+      threatId: 't1',
+      cls: 'quad',
+      confidence: 0.8,
+      followedAssistant: true,
+      assistantCorrect: false,
+    };
+    expect(() => SessionEventSchema.parse(event)).not.toThrow();
+    expect(() => SessionEventSchema.parse({ ...event, followedAssistant: undefined })).toThrow();
   });
 });
 

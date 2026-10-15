@@ -28,6 +28,7 @@ On Windows without symlink permission, `pnpm-workspace.yaml` sets `nodeLinker: h
 ## Layout
 
 - `src/schema` shared zod schemas and types (frozen; change only by agreement)
+- `src/shared` seeded PRNG (frozen with the schema)
 - `src/sim` deterministic simulation (Person A)
 - `src/client` React and three.js front end (Person A)
 - `src/engine` scenario generator, scoring, adaptive difficulty, bots (Person B)
