@@ -51,6 +51,7 @@
         { "condition": "hostile_roe_met_wrong_effector", "points": 0.5, "label": "Hostile, ROE met, wrong effector" },
         { "condition": "engaged_before_confirmation", "points": -0.5, "label": "ROE violation: engaged before confirmation" },
         { "condition": "held_fire_on_hostile", "points": -1, "label": "Critical miss: held fire on a hostile" },
+        { "condition": "ignored_hostile", "points": 0, "label": "Hostile never reached an asset and was not engaged" },
         { "condition": "engaged_bird", "points": -0.75, "label": "Engaged a bird" },
         { "condition": "engaged_civilian", "points": -1, "label": "Engaged a civilian aircraft" },
         { "condition": "engaged_friendly", "points": -1, "label": "Engaged a friendly aircraft" },

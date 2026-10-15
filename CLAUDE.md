@@ -74,6 +74,21 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - Routes: `/play/:examId` and `/replay/:sessionId?t=seconds`. `examId` maps to a seed (numeric ids are used as the seed, other strings are hashed) and the spec comes from `generateScenario` with all difficulty axes at 0.5.
 - `src/client/storage.ts` is an interim Dexie store (`dronacharya-client`, table `sessions`: id, examId, traineeId, spec, log, endedAtSec, savedAt). Move to `src/store` when it exists.
 
+## Scoring engine (src/engine)
+
+- `scoreSession(spec, log, tree)` returns the `ScoreReport`; `analyseSession` returns `{report, extras}`. `extras` carries what the frozen report has no field for: `kendallTau` (display only, never affects points), `excludedThreatIds`, `droppedStages`, `misses`, `wastedEffort`, `engageCounts` and `verdicts` (the tree condition chosen per threat and stage).
+- The scorer measures facts and picks a condition id from `CONDITION_IDS`; the tree JSON decides every point value. A chosen condition with no branch in the tree scores 0.
+- A threat is scored only if the log has an `observable` event for it. First `detect` wins. Classification used is the last `classify` before the first `engage`, or the last overall when never engaged. Only the first `engage` per threat decides. The last `rank` event is the trainee's order. `sessionId` is `${scenarioId}:${traineeId}`.
+- Warning window is `max(1, etaImpact - observableAt)`, where etaImpact is the leak time if a leak result exists, otherwise `min(spawnAtSec + rangeM / speedMps, durationSec)`. Reaction bands and rank-distance bands are parsed from the ids `reaction<=X` and `rank_within_N`.
+- Optimal order is hostile threats by theoretical ETA ascending, then the value of the nearest asset to the spawn point descending, then id. Non-hostile ids in the trainee's rank are ignored.
+- Engagement priority: engaged a non-threat (friendly, bird, civilian), then ROE violation (`engaged_before_confirmation`: no classification before the engage, or confidence below `roe.minConfidence`, when `requireClassification`), then wrong effector (the first result after the engage is `wasted`), then correct. Never engaged: hostile that leaked is `held_fire_on_hostile`; hostile that did not is `ignored_hostile` with zero points and no flag; non-threat is `held_fire_on_nonthreat`.
+- An engage that is followed only by a leak, or by nothing, is treated as the right effector arriving too late; the outcome stage carries the penalty.
+- Swarm coverage: a member with no engage of its own is covered by the earliest engage on any member with the same `swarmId`. Its ROE check uses the engaged member's classification. Detection and classification stay per member.
+- `decisions[].max` is the stage weight divided by the number of threats scored in that stage (hostile only for assessment). Each decision is clamped to `[-max, max]`, each stage to at least 0. A stage with no applicable threats, or no tree node, is dropped and the total is re-normalised over the remaining weights. A dropped stage has competency 50.
+- Critical fails come from `tree.criticalFails`: every threat whose chosen condition matches a fail is added to `critical[]`, and a `scoreCap` lowers the total after totalling.
+- `competencies.detect|classify|prioritise|engage` are stage points divided by the stage weight, times 100. `roe` is 100 times the share of scored threats whose engagement condition is not `engaged_before_confirmation`, `engaged_friendly`, `engaged_bird` or `engaged_civilian`.
+- `trust` is not a tree stage and never part of the total. Per classify event: followed and wrong is -1, overrode and wrong is +1, followed and right is +0.5, overrode and right is -0.25. `trust = clamp(50 + 50 * mean, 0, 100)`; with no classify events it is 50.
+
 ## Commands
 
 See README.md.
