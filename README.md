@@ -25,6 +25,12 @@ On Windows without symlink permission, `pnpm-workspace.yaml` sets `nodeLinker: h
 
 `--bot` is one of `expert`, `novice`, `overtrusting`.
 
+## Routes
+
+- `/` home: trainee id, sample exams, past sessions
+- `/play/:examId` trainee client
+- `/replay/:sessionId?t=seconds` replay with ground truth and event timeline
+
 ## Layout
 
 - `src/schema` shared zod schemas and types (frozen; change only by agreement)

@@ -60,6 +60,20 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - `src/engine/bots.ts`: `runBot(spec, kind: expert|novice|overtrusting): SessionLog`
 - `src/shared/prng.ts`: `mulberry32(seed)`
 
+## Sim and client (feat/sim)
+
+- `src/sim` is a mutating world: `step(world, inputs, dt)` updates the world in place and returns it. Time is `tick * dt`, so event times are exact multiples of 0.05.
+- Inputs are applied at the start of a step, stamped with `world.t`, then the world advances. The sim echoes valid `detect`, `classify`, `rank` and `engage` inputs as events and emits `observable` and `result` itself.
+- `observable` fires the first tick any live sensor's detection range covers the threat. Range depends on sensor type, health, `failAtSec`, weather, time of day, map type, altitude, threat class and `terrain_mask` behaviour; `rf` sees only `rfEmitting` threats.
+- Results: hostile reaching an asset is `leak`; jammer or any effective effector on a hostile is `neutralised` after an effect delay (jammer 1 s, gun 1 s, net 2 s, spoofer 3 s, interceptor 4 s); an ineffective effector on a hostile is `wasted` and the hostile stays inbound; engaging a friendly with an effective effector is `fratricide`; engaging a bird or civilian is `wasted`; a non-threat that transits out of range and anything still airborne at the end is `ignored`.
+- A jammer that neutralises a swarm member also neutralises every other `rfEmitting` member of the same `swarmId` inside jammer range, each with its own `result`.
+- `getObservations(world)` returns only contacts currently seen by a sensor, with noisy position, no class, and the assistant suggestion only after `detect`. `getGroundTruth(world)` is for replay and instructor views.
+- `world.rejected` lists inputs the sim refused: `unknown_threat`, `not_active`, `not_visible`, `already_detected`, `not_detected`, `engagement_in_progress`, `no_ammo`, `out_of_range`.
+- `finish(world)` ends a session early and emits `ignored` for everything still airborne.
+- `replayEvents(spec, log, endedAtSec)` and `worldAtTime(spec, log, t, endedAtSec)` rebuild a world from a log by re-feeding its inputs; a replay of a live log must equal the log.
+- Routes: `/play/:examId` and `/replay/:sessionId?t=seconds`. `examId` maps to a seed (numeric ids are used as the seed, other strings are hashed) and the spec comes from `generateScenario` with all difficulty axes at 0.5.
+- `src/client/storage.ts` is an interim Dexie store (`dronacharya-client`, table `sessions`: id, examId, traineeId, spec, log, endedAtSec, savedAt). Move to `src/store` when it exists.
+
 ## Commands
 
 See README.md.
