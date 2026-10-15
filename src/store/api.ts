@@ -87,6 +87,15 @@ export async function saveSession(input: SaveSessionInput): Promise<string> {
   });
 }
 
+export async function getExam(id: string): Promise<ExamRecord | undefined> {
+  return db.exams.get(id);
+}
+
+export async function listAllSessions(): Promise<SessionRecord[]> {
+  const rows = await db.sessions.toArray();
+  return rows.sort(byCreatedThenId).reverse();
+}
+
 export async function countSessions(): Promise<number> {
   return db.sessions.count();
 }

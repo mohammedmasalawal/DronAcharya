@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EffectorType, ScenarioSpec, ThreatClass } from '../schema';
 import type { Observation } from '../sim';
-import { specForExam } from './exam';
+import { getExam, resolveExam } from '../store';
 import { navigate } from './router';
 import { Scene, type SceneContact } from './Scene';
-import { getTraineeId, saveSession } from './storage';
+import { completeSession } from './session';
+import {
+  GUEST_UNIT_NAME,
+  createGuestTrainee,
+  listTraineeChoices,
+  recallTrainee,
+  rememberTrainee,
+  type TraineeChoice,
+} from './trainee';
 import { useLiveWorld } from './useLiveWorld';
 import { CLASS_LABEL, CLASS_ORDER, DETECTED_COLOR, UNDETECTED_COLOR } from './palette';
 
@@ -28,18 +36,182 @@ function statusOf(
   return { label: 'UNCONFIRMED', tone: 'new' };
 }
 
-export function Play({ examId }: { examId: string }) {
-  const spec = useMemo(() => specForExam(examId), [examId]);
-  return <PlaySession key={examId} spec={spec} examId={examId} />;
+interface PlayData {
+  spec: ScenarioSpec;
+  registeredExam: boolean;
 }
 
-function PlaySession({ spec, examId }: { spec: ScenarioSpec; examId: string }) {
+const NEW_TRAINEE = '__new__';
+
+function StartScreen({
+  examId,
+  spec,
+  onStart,
+}: {
+  examId: string;
+  spec: ScenarioSpec;
+  onStart: (choice: TraineeChoice) => void;
+}) {
+  const [choices, setChoices] = useState<TraineeChoice[] | null>(null);
+  const [selected, setSelected] = useState<string>(NEW_TRAINEE);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    listTraineeChoices()
+      .then((list) => {
+        if (cancelled) return;
+        setChoices(list);
+        const recalled = recallTrainee();
+        if (recalled && list.some((choice) => choice.traineeId === recalled.traineeId)) {
+          setSelected(recalled.traineeId);
+        } else if (recalled) {
+          setName(recalled.name);
+        } else if (list.length > 0) {
+          setSelected(list[0]!.traineeId);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setChoices([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const creating = selected === NEW_TRAINEE;
+  const ready = creating ? name.trim().length > 0 : choices !== null;
+
+  const start = () => {
+    setBusy(true);
+    setError(null);
+    const resolve = creating
+      ? createGuestTrainee(name)
+      : Promise.resolve(choices!.find((choice) => choice.traineeId === selected)!);
+    resolve
+      .then((choice) => {
+        rememberTrainee(choice);
+        onStart(choice);
+      })
+      .catch((failure: unknown) => {
+        setBusy(false);
+        setError(failure instanceof Error ? failure.message : 'Could not start the session');
+      });
+  };
+
+  return (
+    <div className="home start-screen">
+      <h1>Ready to start</h1>
+      <p className="muted">
+        Scenario {examId}: {spec.mapType} terrain, {spec.timeOfDay}, {spec.weather}, about{' '}
+        {Math.round(spec.durationSec / 60)} minutes.
+      </p>
+
+      <label className="field">
+        Trainee
+        <select
+          value={selected}
+          onChange={(event) => setSelected(event.target.value)}
+          disabled={choices === null}
+        >
+          {(choices ?? []).map((choice) => (
+            <option key={choice.traineeId} value={choice.traineeId}>
+              {choice.name} ({choice.unitName})
+            </option>
+          ))}
+          <option value={NEW_TRAINEE}>New trainee ({GUEST_UNIT_NAME} unit)...</option>
+        </select>
+      </label>
+
+      {creating && (
+        <label className="field">
+          Name
+          <input
+            value={name}
+            placeholder="Type a name"
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && ready && !busy) start();
+            }}
+          />
+        </label>
+      )}
+
+      {error && <p className="toast">{error}</p>}
+
+      <div className="start-actions">
+        <button className="primary" disabled={!ready || busy} onClick={start}>
+          Start session
+        </button>
+        <button onClick={() => navigate('/')}>Back</button>
+      </div>
+    </div>
+  );
+}
+
+export function Play({ examId }: { examId: string }) {
+  const [data, setData] = useState<PlayData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [trainee, setTrainee] = useState<TraineeChoice | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    setError(null);
+    setTrainee(null);
+    Promise.all([resolveExam(examId), getExam(examId)])
+      .then(([spec, exam]) => {
+        if (!cancelled) setData({ spec, registeredExam: exam !== undefined });
+      })
+      .catch((failure: unknown) => {
+        if (!cancelled) {
+          setError(failure instanceof Error ? failure.message : 'Could not load the scenario');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [examId]);
+
+  if (error) {
+    return (
+      <div className="center">
+        <p>{error}</p>
+        <button onClick={() => navigate('/')}>Home</button>
+      </div>
+    );
+  }
+  if (!data) return <div className="center">Loading scenario...</div>;
+  if (!trainee) return <StartScreen examId={examId} spec={data.spec} onStart={setTrainee} />;
+
+  return (
+    <PlaySession
+      key={`${examId}:${trainee.traineeId}`}
+      spec={data.spec}
+      examId={data.registeredExam ? examId : undefined}
+      trainee={trainee}
+    />
+  );
+}
+
+function PlaySession({
+  spec,
+  examId,
+  trainee,
+}: {
+  spec: ScenarioSpec;
+  examId: string | undefined;
+  trainee: TraineeChoice;
+}) {
   const live = useLiveWorld(spec);
   const { snapshot, send, view } = live;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(70);
   const [rankOrder, setRankOrder] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveAttempt, setSaveAttempt] = useState(0);
   const saved = useRef(false);
 
   const observed = useMemo(
@@ -63,19 +235,21 @@ function PlaySession({ spec, examId }: { spec: ScenarioSpec; examId: string }) {
   useEffect(() => {
     if (!snapshot.done || saved.current) return;
     saved.current = true;
-    saveSession({
-      examId,
-      traineeId: getTraineeId(),
+    setSaveError(null);
+    completeSession({
       spec,
+      events: live.world.events,
       endedAtSec: live.world.t,
-      log: { scenarioId: spec.id, traineeId: getTraineeId(), events: live.world.events },
+      traineeId: trainee.traineeId,
+      unitId: trainee.unitId,
+      examId,
     })
-      .then((stored) => navigate(`/replay/${stored.id}`))
+      .then((completed) => navigate(completed.debriefPath))
       .catch((error: unknown) => {
         saved.current = false;
         setSaveError(error instanceof Error ? error.message : 'Could not save the session');
       });
-  }, [snapshot.done, examId, spec, live.world]);
+  }, [snapshot.done, spec, examId, trainee, live.world, saveAttempt]);
 
   const detectedSet = useMemo(() => new Set(snapshot.detectedIds), [snapshot.detectedIds]);
 
@@ -108,6 +282,7 @@ function PlaySession({ spec, examId }: { spec: ScenarioSpec; examId: string }) {
     <div className="play">
       <header className="topbar">
         <strong>{spec.id}</strong>
+        <span className="chip">{trainee.name}</span>
         <span>
           {spec.mapType} · {spec.timeOfDay} · {spec.weather}
         </span>
@@ -143,7 +318,16 @@ function PlaySession({ spec, examId }: { spec: ScenarioSpec; examId: string }) {
           />
           {snapshot.done && (
             <div className="overlay">
-              {saveError ? `Save failed: ${saveError}` : 'Session complete. Saving...'}
+              {saveError ? (
+                <div className="overlay-box">
+                  <p>Save failed: {saveError}</p>
+                  <button className="primary" onClick={() => setSaveAttempt((n) => n + 1)}>
+                    Retry save
+                  </button>
+                </div>
+              ) : (
+                'Session complete. Saving...'
+              )}
             </div>
           )}
         </div>

@@ -1,11 +1,13 @@
 export {
   countSessions,
   createExam,
+  getExam,
   getProfile,
   getSession,
   getTrainee,
   getUnit,
   importDemoData,
+  listAllSessions,
   listExams,
   listSessions,
   listTrainees,

@@ -1,7 +1,6 @@
 import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { specForExam } from '../client/exam';
 import { generateScenario } from '../engine/generator';
 import { runBot } from '../engine/bots';
 import type { Difficulty, ScenarioSpec } from '../schema';
@@ -161,7 +160,7 @@ describe('exams', () => {
   it('hashes an unknown string id deterministically, exactly like the client', async () => {
     const spec = await resolveExam('EXAM-A');
     expect(spec).toEqual(await resolveExam('EXAM-A'));
-    expect(spec).toEqual(specForExam('EXAM-A'));
+    expect(spec).toEqual(generateScenario(seedForExam('EXAM-A'), DEFAULT_EXAM_DIFFICULTY, []));
     expect(spec.seed).not.toBe(seedForExam('EXAM-B'));
   });
 

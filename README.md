@@ -29,21 +29,22 @@ On Windows without symlink permission, `pnpm-workspace.yaml` sets `nodeLinker: h
 
 ## Routes
 
-- `/` home: trainee id, sample exams, past sessions
-- `/play/:examId` trainee client
+- `/` home: Trainee, Review and Instructor entry points, recent sessions
+- `/play/:examId` trainee start screen and session
 - `/replay/:sessionId?t=seconds` replay with ground truth and event timeline
+- `/review`, `/debrief/:sessionId`, `/progress/:traineeId`, `/unit/:unitId` after-action review
 
 ## Layout
 
 - `src/schema` shared zod schemas and types (frozen; change only by agreement)
 - `src/shared` seeded PRNG (frozen with the schema)
-- `src/sim` deterministic simulation (Person A)
-- `src/client` React and three.js front end (Person A)
-- `src/engine` scenario generator, scoring, adaptive difficulty, bots (Person B)
-- `src/store` zustand and dexie persistence (Person B)
-- `src/dashboard` after-action review (Person B)
-- `src/instructor` instructor tools (Person B)
-- `data/` scoring tree and scenario data (Person B)
+- `src/sim` deterministic simulation
+- `src/client` React and three.js front end
+- `src/engine` scenario generator, scoring, adaptive difficulty, bots
+- `src/store` dexie persistence, the only store
+- `src/dashboard` after-action review
+- `src/instructor` instructor tools
+- `data/` scoring tree and scenario data
 - `scripts/sim-run.ts` the `sim:run` CLI
 
 ## Deploying

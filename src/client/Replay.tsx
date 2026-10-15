@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SessionEvent } from '../schema';
 import { replayEvents } from '../sim';
+import { getSession, getTrainee, type SessionRecord } from '../store';
 import { navigate, setQueryTime } from './router';
 import { Scene, type SceneContact } from './Scene';
-import { loadSession, type StoredSession } from './storage';
+import { debriefPath } from './session';
 import { useReplay } from './useReplay';
 import { CLASS_LABEL, isResolved, truthColor } from './palette';
 
@@ -32,17 +33,33 @@ function formatTime(seconds: number): string {
   return `${seconds.toFixed(1)}s`;
 }
 
+interface Loaded {
+  session: SessionRecord;
+  traineeName: string;
+}
+
 export function Replay({ sessionId, t }: { sessionId: string; t: number }) {
   const [state, setState] = useState<
-    { status: 'loading' } | { status: 'missing' } | { status: 'ready'; session: StoredSession }
+    { status: 'loading' } | { status: 'missing' } | ({ status: 'ready' } & Loaded)
   >({ status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
-    loadSession(sessionId)
-      .then((session) => {
+    setState({ status: 'loading' });
+    getSession(sessionId)
+      .then(async (session) => {
         if (cancelled) return;
-        setState(session ? { status: 'ready', session } : { status: 'missing' });
+        if (!session) {
+          setState({ status: 'missing' });
+          return;
+        }
+        const trainee = await getTrainee(session.traineeId);
+        if (cancelled) return;
+        setState({
+          status: 'ready',
+          session,
+          traineeName: trainee ? trainee.name : session.traineeId,
+        });
       })
       .catch(() => {
         if (!cancelled) setState({ status: 'missing' });
@@ -57,15 +74,35 @@ export function Replay({ sessionId, t }: { sessionId: string; t: number }) {
     return (
       <div className="center">
         <p>No session found for {sessionId}.</p>
-        <button onClick={() => navigate('/')}>Home</button>
+        <div className="start-actions">
+          <button className="primary" onClick={() => navigate('/review')}>
+            Open review
+          </button>
+          <button onClick={() => navigate('/')}>Home</button>
+        </div>
       </div>
     );
   }
 
-  return <ReplayView key={sessionId} session={state.session} initialT={t} />;
+  return (
+    <ReplayView
+      key={`${sessionId}@${t}`}
+      session={state.session}
+      traineeName={state.traineeName}
+      initialT={t}
+    />
+  );
 }
 
-function ReplayView({ session, initialT }: { session: StoredSession; initialT: number }) {
+function ReplayView({
+  session,
+  traineeName,
+  initialT,
+}: {
+  session: SessionRecord;
+  traineeName: string;
+  initialT: number;
+}) {
   const { spec, log, endedAtSec } = session;
   const replay = useReplay(spec, log, endedAtSec, initialT);
   const { snapshot, view } = replay;
@@ -104,8 +141,11 @@ function ReplayView({ session, initialT }: { session: StoredSession; initialT: n
     <div className="play">
       <header className="topbar">
         <button onClick={() => navigate('/')}>Home</button>
+        <button className="primary" onClick={() => navigate(debriefPath(session.id))}>
+          Back to debrief
+        </button>
         <strong>Replay {spec.id}</strong>
-        <span>trainee {session.traineeId}</span>
+        <span>trainee {traineeName}</span>
         <span className={consistent ? 'chip' : 'chip bad'}>
           {consistent ? 'replay matches log' : 'replay differs from log'}
         </span>

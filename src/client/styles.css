@@ -327,3 +327,68 @@ h3 {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+
+select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.home {
+  overflow-y: auto;
+  height: 100%;
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.entry-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.entry-card h2 {
+  margin-top: 0;
+}
+
+.start-screen {
+  max-width: 520px;
+}
+
+.start-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.session-links {
+  display: flex;
+  gap: 8px;
+}
+
+.overlay-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}

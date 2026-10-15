@@ -15,11 +15,9 @@ A browser-based simulator that trains personnel to detect, classify and engage d
 
 pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three/drei, zustand, zod, dexie, recharts, vitest. No backend; all data stays in the browser (IndexedDB). Must build as a static site deployable on Vercel.
 
-## Team split
+## Ownership
 
-- Person A owns `src/sim` and `src/client`.
-- Person B owns `src/engine`, `src/store`, `src/dashboard`, `src/instructor` and `data/`.
-- `src/schema` and `src/shared` are shared and frozen at schema v1 (git tag `schema-v1`); any change needs both people to agree.
+One owner now maintains the whole repository; there are no lane restrictions. Any folder may be edited, with one exception: `src/schema` and `src/shared` stay frozen (schema v1 plus the additive v1.1 in tag `schema-v1.1`). A change to either needs an explicit decision by the owner, not a routine edit.
 
 ## Hard rules
 
@@ -48,7 +46,7 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - Critical fails: `engaged_friendly` caps the total at 40; `held_fire_on_hostile` is flagged in `critical[]` with no cap.
 - `criticalFails[]` items are `{id, condition, label, scoreCap?}`; `critical[]` in a report items are `{id, threatId?, label}`.
 - `src/shared/prng.ts` (`mulberry32`) is frozen with `src/schema`. Sim and engine both import from it.
-- `World`, `SimInput` and `Observation` live in `src/sim` and are Person A's to reshape. The function names `createWorld`, `step` and `getObservations` are frozen.
+- `World`, `SimInput` and `Observation` live in `src/sim` and may be reshaped. The function names `createWorld`, `step` and `getObservations` are stable.
 - `nodeLinker: hoisted` in `pnpm-workspace.yaml` and TypeScript 5.9 stay as they are.
 
 ### Schema v1.1 (tag `schema-v1.1`, additive only)
@@ -82,7 +80,7 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - `finish(world)` ends a session early and emits `ignored` for everything still airborne.
 - `replayEvents(spec, log, endedAtSec)` and `worldAtTime(spec, log, t, endedAtSec)` rebuild a world from a log by re-feeding its inputs; a replay of a live log must equal the log.
 - Routes: `/play/:examId` and `/replay/:sessionId?t=seconds` (the dashboard adds `/review`, `/debrief/:sessionId`, `/progress/:traineeId` and `/unit/:unitId`, see below). `examId` maps to a seed (numeric ids are used as the seed, other strings are hashed) and the spec comes from `generateScenario` with all difficulty axes at 0.5.
-- `src/client/storage.ts` is an interim Dexie store (`dronacharya-client`, table `sessions`: id, examId, traineeId, spec, log, endedAtSec, savedAt). Move to `src/store` when it exists.
+- The interim client store is gone: `src/client` reads and writes only through `src/store` (see "Client flow" below). The old Dexie database `dronacharya-client` is no longer opened.
 
 ## Scoring engine (src/engine)
 
@@ -115,9 +113,9 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 
 ## Store, adaptive engine, training and demo data
 
-### Import surface for Person A
+### Import surface
 
-`import { saveSession, resolveExam, ... } from '../store'` (everything below is exported from `src/store/index.ts`). The store is a Dexie database named `dronacharya-store`; it supersedes the interim `src/client/storage.ts`.
+`import { saveSession, resolveExam, ... } from '../store'` (everything below is exported from `src/store/index.ts`). The store is a Dexie database named `dronacharya-store` and the only persistence layer.
 
 - `saveSession({spec, log, endedAtSec, traineeId, unitId}): Promise<string>` runs `analyseSession` with the default tree, stores `{report, extras}`, updates the skill profile with `updateSkill`, creates the unit and trainee rows if missing, and returns the session id `${scenarioId}:${traineeId}:${n}`, where `n` is 1 plus that trainee's earlier sessions on that scenario. `report.sessionId` is that id.
 - `getSession(id)`, `listSessions(traineeId)` (oldest first), `listUnitReports(unitId)` (`{sessionId, traineeId, scenarioId, createdAt, report, extras}` oldest first).
@@ -160,9 +158,9 @@ pnpm, Vite, React 18, TypeScript strict, three, @react-three/fiber, @react-three
 - `/unit/:unitId`: heatmap, conditions the unit handles worst, exam comparison, ranking.
 - Replay deep links are `/replay/:sessionId?t=<seconds>` with the session id encoded (`replayUrl(id, t)`), pointing at `decisionTime` for each lost decision.
 
-### Registering the routes (the one edit outside the lane)
+### Registering the routes
 
-`src/dashboard/index.ts` exports `dashboardRoutes` (`{pattern, component}[]`) and `matchDashboardRoute(pathname)`. The client router does not know these paths, so `src/client/App.tsx` hands unmatched paths to the dashboard in its `notFound` case:
+`src/dashboard/index.ts` exports `dashboardRoutes` (`{pattern, component}[]`) and `matchDashboardRoute(pathname)`. The client router does not know these paths, so `src/client/App.tsx` hands unmatched paths to the dashboard in its `notFound` case. Register any further page (for example `/instructor`) by adding it to `dashboardRoutes`:
 
 ```tsx
 import { matchDashboardRoute } from '../dashboard';
@@ -176,12 +174,17 @@ case 'notFound': {
 }
 ```
 
-Importing `../dashboard` also loads `dashboard.css`. The dashboard imports `navigate` from `src/client/router.ts`; if Person A renames it, update `src/dashboard/ui.tsx`.
+Importing `../dashboard` also loads `dashboard.css`. The dashboard imports `navigate` from `src/client/router.ts`.
 
-### What Person A needs to change for replay and live data
+### Client flow (play, save, debrief, replay)
 
-- `src/client/Replay.tsx` loads sessions from the interim `src/client/storage.ts`, so a dashboard Replay link for a session saved by `src/store` (including all demo sessions) shows "No session found". Load with `getSession(id)` from `../store` (fall back to the interim store) and use `record.spec`, `record.log` and `record.endedAtSec`.
-- `src/client/Play.tsx` also saves only to the interim store, so live sessions never reach the dashboard. Call `saveSession({spec, log, endedAtSec, traineeId, unitId, examId?})` from `../store` and navigate to `/debrief/<encoded id>`; pass `examId` when the session is a unit exam so it is excluded from trend lines.
+1. `/` (Home) has three entry points: Trainee (sample exams 1 to 5 and a random scenario), Review (`/review`) and Instructor (`/instructor`, shown as "Coming soon" until the route is registered with the dashboard route list). Recent sessions come from `listAllSessions`.
+2. `/play/:examId` loads the scenario with `resolveExam(examId)` (a registered exam from the exams table, else the numeric or hashed seed at difficulty 0.5), then shows a start screen: pick an existing trainee from the store or type a name to create one in the `guest` unit (slug id, `saveUnit` and `saveTrainee` on demand). The last choice is remembered in `localStorage` (`dronacharya.lastTrainee`, wrapped in try/catch).
+3. The session runs on the fixed 50 ms tick. It ends when sim time reaches the scenario duration or on "End session" (`finish(world)`); both paths leave `world.t` at the tick where it ended.
+4. `completeSession` (`src/client/session.ts`) calls `saveSession({spec, log, endedAtSec: world.t, traineeId, unitId, examId})`, which scores the log, stores `{report, extras}`, updates the skill profile and returns the id `${scenarioId}:${traineeId}:${n}`. The client then navigates to `/debrief/<encodeURIComponent(id)>`. `examId` is passed only when the route id is a registered exam in the exams table; sample exams and random scenarios are practice sessions and stay in the trend lines. If saving fails the overlay offers "Retry save".
+5. `/replay/:sessionId?t=<seconds>` loads the record with `getSession` (the router decodes the id), rebuilds the world from `spec` and `log` up to `endedAtSec`, and starts the scrubber at `t`. It shows "Back to debrief" and a clean not-found state with links to Review and Home. Dashboard "Replay at" buttons use `replayPath`-style links to the decision time.
+
+The assistant: each threat's suggestion is drawn in `createWorld` from the spec seed, so it is deterministic under replay. It is correct with probability `clamp(0.95 - 0.5 * ambiguity - 0.2 * degradation, 0.3, 0.99)`, which is about 14% wrong at difficulty 0.1, 41% at 0.5 and 69% at 0.9 (every axis equal). The sim writes `followedAssistant` (the chosen class equals the suggestion) and `assistantCorrect` (the suggestion equals the true class) onto every `classify` event, so the client logs them without extra code.
 
 ### Data and exams
 
